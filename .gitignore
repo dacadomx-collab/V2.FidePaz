@@ -1,0 +1,139 @@
+# =============================================================================
+# .gitignore — Plantilla AXON_DCD / VECTOR_CERO (PHP + Node.js + OS)
+# REGLA DE ORO: Solo se rastrea código fuente, assets y config pública.
+# =============================================================================
+
+# ── SECRETOS Y CREDENCIALES (NUNCA al repositorio) ───────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.staging
+# Solo .env.example está permitido en el repo
+
+# Archivos confidenciales exclusivos del desarrollador
+info.txt
+*.secret
+credentials.json
+service-account.json
+
+# ── BINARIOS COMPILADOS DE GO (backend/) — no versionar, se compilan en el
+# servidor o vía el propio workflow de deploy ─────────────────────────────
+backend/fidepaz-backend.exe
+backend/fidepaz-backend
+*.exe
+
+# ── DEPENDENCIAS ──────────────────────────────────────────────────────────────
+/vendor/
+/node_modules/
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ── BUILD OUTPUTS ─────────────────────────────────────────────────────────────
+/.next/
+/out/
+/build/
+/dist/
+.next
+*.tsbuildinfo
+next-env.d.ts
+
+# ── PLATAFORMAS DE DEPLOY ─────────────────────────────────────────────────────
+.vercel
+.netlify
+
+# ── LOGS Y DEPURACIÓN ─────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+error.log
+php_errors.log
+
+# ── BASE DE DATOS (archivos de volcado — pueden contener datos sensibles) ────
+*.sql
+*.sqlite
+*.db
+
+# ── ARCHIVOS COMPRIMIDOS Y PESADOS ───────────────────────────────────────────
+*.zip
+*.rar
+*.tar
+*.tar.gz
+*.7z
+*.gz
+
+# ── MULTIMEDIA PESADA (videos — usar CDN/S3 en su lugar) ─────────────────────
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wmv
+*.flv
+*.webm
+*.m4v
+
+# ── SISTEMA OPERATIVO ─────────────────────────────────────────────────────────
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+desktop.ini
+$RECYCLE.BIN/
+# Linux
+*~
+
+# ── IDEs Y EDITORES ──────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── BACKUPS Y TEMPORAL ────────────────────────────────────────────────────────
+/backups/
+/backups_y_pruebas/
+*.tmp
+*.temp
+*.bak
+*.orig
+*.cache
+
+# ── PRUEBAS / COVERAGE ────────────────────────────────────────────────────────
+/coverage/
+/.nyc_output/
+
+# ── PHP ESPECÍFICO ────────────────────────────────────────────────────────────
+composer.phar
+/storage/framework/
+/storage/logs/
+/bootstrap/cache/
+
+# ── CARPETAS DE HERRAMIENTAS INTERNAS (no deben desplegarse) ─────────────────
+/.claude/
+
+# ── GUARDRAIL DE ORIGEN (Auditoría 2026-06-24) ────────────────────────────────
+# Todo proyecto fundado por la FSM de AXON_GENESIS nace con este bloqueo activo
+# de fábrica: knowledge/ nunca se versiona (memoria interna), igual que .env e
+# info.txt ya bloqueados arriba. Las instrucciones de IA permanecen 100% locales.
+/knowledge/
+
+# ── REPOSITORIO HISTÓRICO V1 (SOLO LECTURA, ver CLAUDE.md §1) ────────────────
+# 6+ GB de binarios/zips, y contiene dumps SQL con PII real de colonos
+# (correos, teléfonos, hashes bcrypt) — nunca debe llegar a un remoto git.
+/BackUp_28_Julio_2026/

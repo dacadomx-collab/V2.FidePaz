@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FidePaz — Asociación de Colonos</title>
+    <meta name="description" content="Sitio informativo de la Asociación de Colonos de FidePaz. Acceso al portal administrativo de cuotas y trámites.">
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<header class="site-header container">
+    <a href="/" style="display:flex;align-items:center;gap:.5rem;text-decoration:none;">
+        <img class="logo" src="assets/img/fidepaz-logo.png" alt="FidePaz">
+    </a>
+
+    <button id="nav-toggle" class="nav-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-nav">
+        ☰
+    </button>
+
+    <nav>
+        <ul id="site-nav" class="site-nav">
+            <li><a href="#inicio">Inicio</a></li>
+            <li><a href="#acerca">Acerca de</a></li>
+            <li><a href="#contacto">Contacto</a></li>
+            <li><a href="/administrator/" class="btn" style="padding:.5rem 1rem;">Acceso Colonos</a></li>
+        </ul>
+    </nav>
+</header>
+
+<main>
+    <section id="inicio" class="hero container">
+        <h1>Asociación de Colonos de FidePaz</h1>
+        <p>
+            Portal informativo del fraccionamiento. Consulta tu estado de cuenta, realiza tus
+            pagos de mantenimiento y mantente al tanto de los avisos de la asociación desde el
+            portal administrativo.
+        </p>
+        <div class="hero-actions">
+            <a href="/administrator/" class="btn">Ir al Portal de Colonos</a>
+            <a href="#contacto" class="btn btn-outline">Contactar a la Administración</a>
+        </div>
+    </section>
+
+    <section id="acerca" class="container">
+        <div class="arf-grid">
+            <div class="card arf-col-3">
+                <h2>¿Quiénes somos?</h2>
+                <p>
+                    <!-- TODO(contenido oficial): sustituir por el texto institucional real de la
+                         Asociación de Colonos de FidePaz, confirmado por el Arquitecto/directiva.
+                         No se inventó una historia ni misión/visión sin fuente verificada. -->
+                    La Asociación de Colonos de FidePaz es el organismo que administra, de forma
+                    transparente y en beneficio de todos los residentes, el mantenimiento y los
+                    servicios comunes del fraccionamiento.
+                </p>
+            </div>
+            <div class="card arf-col-3">
+                <h2>Cuotas de mantenimiento</h2>
+                <p>
+                    Las cuotas de mantenimiento se gestionan a través del portal administrativo,
+                    donde cada colono puede consultar su historial de pagos y estado de cuenta.
+                </p>
+            </div>
+            <div class="card arf-col-3">
+                <h2>Portal administrativo</h2>
+                <p>
+                    El acceso al portal es exclusivo para colonos registrados. Si aún no tienes
+                    acceso, comunícate con la administración.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section id="contacto" class="container">
+        <div class="card">
+            <h2>Contacto</h2>
+            <p>
+                <!-- TODO(datos reales): sustituir por el correo/teléfono oficial de contacto de
+                     la administración de FidePaz una vez confirmado por el Arquitecto. -->
+                Para dudas sobre tu cuenta o acceso al portal, escríbenos con el siguiente formulario
+                o contacta a la administración del fraccionamiento por los canales oficiales de la
+                asociación.
+            </p>
+
+            <form id="contact-form" class="arf-grid" novalidate>
+                <div class="form-field arf-col-2">
+                    <label for="contact-name">Nombre</label>
+                    <input type="text" id="contact-name" name="name" maxlength="100" required autocomplete="name">
+                </div>
+                <div class="form-field arf-col-2">
+                    <label for="contact-email">Correo electrónico</label>
+                    <input type="email" id="contact-email" name="email" maxlength="150" required autocomplete="email">
+                </div>
+                <div class="form-field">
+                    <label for="contact-message">Mensaje</label>
+                    <textarea id="contact-message" name="message" rows="4" maxlength="1000" required></textarea>
+                </div>
+                <div class="form-field">
+                    <button type="submit" class="btn">Enviar mensaje</button>
+                    <p id="contact-status" class="form-status" role="status" aria-live="polite"></p>
+                </div>
+            </form>
+        </div>
+    </section>
+</main>
+
+<footer class="site-footer container">
+    <p>&copy; <span id="current-year">2026</span> Asociación de Colonos de FidePaz. Todos los derechos reservados.</p>
+</footer>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

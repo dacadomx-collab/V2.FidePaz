@@ -1,0 +1,297 @@
+/* =============================================================================
+   assets/css/main.css — FidePaz V2.0 - Web Pública
+   Mobile-First | ARF-Grid (Adaptive Responsive Flex) | Modo Oscuro fluido
+   Mandamiento #1: nacer para celular, sin anchos fijos en contenedores.
+   Mandamiento #3: contraste mínimo WCAG 4.5:1.
+   Prohibido: !important, estilos inline.
+
+   Paleta institucional: extraída del panel /administrator en producción
+   (styles.797a1963c7237044.css) para mantener identidad visual consistente
+   entre la web pública y el sistema administrativo — no es una paleta
+   inventada para esta página.
+   ============================================================================= */
+
+:root {
+    --color-bg: #ffffff;
+    --color-bg-alt: #f9f9f9;
+    --color-text: #1f2937;
+    --color-text-muted: #6b7280;
+    --color-primary: #1c64f2;
+    --color-primary-dark: #174baa;
+    --color-primary-soft: #ebf5ff;
+    --color-border: #e5e7eb;
+    --space-xs: 0.5rem;
+    --space-sm: 1rem;
+    --space-md: 1.5rem;
+    --space-lg: 2.5rem;
+    --radius: 0.5rem;
+    --container-max: 1400px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-bg: #0b1120;
+        --color-bg-alt: #111827;
+        --color-text: #f1f5f9;
+        --color-text-muted: #9ca3af;
+        --color-primary: #3f83f8;
+        --color-primary-dark: #1c64f2;
+        --color-primary-soft: #16213b;
+        --color-border: #1e293b;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+}
+
+img,
+video {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ── CONTENEDOR MAESTRO: ancho fluido con tope vía variable nativa ───────── */
+.container {
+    width: 100%;
+    max-width: var(--container-max);
+    margin-inline: auto;
+    padding-inline: var(--space-md);
+}
+
+/* ── ARF-GRID (Adaptive Responsive Foundation): 100% responsivo, cero px fijos */
+.arf-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--space-md);
+    width: 100%;
+    padding: var(--space-md);
+}
+
+.arf-grid > * {
+    flex: 1 1 100%;
+}
+
+@media (min-width: 640px) {
+    .arf-grid > .arf-col-2 {
+        flex: 1 1 calc(50% - var(--space-md));
+    }
+}
+
+@media (min-width: 960px) {
+    .arf-grid > .arf-col-3 {
+        flex: 1 1 calc(33.333% - var(--space-md));
+    }
+    .arf-grid > .arf-col-4 {
+        flex: 1 1 calc(25% - var(--space-md));
+    }
+}
+
+.card {
+    background-color: var(--color-bg-alt);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-md);
+}
+
+/* ── SITIO PÚBLICO — Header, Hero, CTA, Footer (Layer 3) ──────────────────── */
+
+.site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding-block: var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.site-header .logo {
+    height: 2.5rem;
+    width: auto;
+}
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.site-nav a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.site-nav a:hover,
+.site-nav a:focus-visible {
+    color: var(--color-primary);
+}
+
+.nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+@media (max-width: 639px) {
+    .site-nav {
+        display: none;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .site-nav.is-open {
+        display: flex;
+    }
+}
+
+@media (min-width: 640px) {
+    .nav-toggle {
+        display: none;
+    }
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: var(--color-primary);
+    color: #ffffff;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    min-height: 44px; /* objetivo táctil accesible, mobile-first */
+}
+
+.btn:hover,
+.btn:focus-visible {
+    background-color: var(--color-primary-dark);
+}
+
+.btn-outline {
+    background-color: transparent;
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.btn-outline:hover,
+.btn-outline:focus-visible {
+    background-color: var(--color-primary-soft);
+}
+
+.hero {
+    text-align: center;
+    padding-block: var(--space-lg);
+}
+
+.hero h1 {
+    font-size: clamp(1.75rem, 5vw, 2.75rem);
+    line-height: 1.2;
+    margin-bottom: var(--space-sm);
+}
+
+.hero p {
+    color: var(--color-text-muted);
+    max-width: 60ch;
+    margin-inline: auto;
+    margin-bottom: var(--space-md);
+}
+
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-sm);
+}
+
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.badge-status .dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background-color: var(--color-border);
+}
+
+.badge-status[data-state="ok"] .dot { background-color: #16a34a; }
+.badge-status[data-state="error"] .dot { background-color: #d0021b; }
+
+/* ── FORMULARIO DE CONTACTO ────────────────────────────────────────────── */
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.form-field label {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.form-field input,
+.form-field textarea {
+    width: 100%;
+    font: inherit;
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.65rem 0.85rem;
+}
+
+.form-field input:focus-visible,
+.form-field textarea:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+}
+
+.form-field textarea {
+    resize: vertical;
+    min-height: 6rem;
+}
+
+.form-status {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.form-status[data-state="success"] { color: #16a34a; }
+.form-status[data-state="error"] { color: #d0021b; }
+
+.site-footer {
+    border-top: 1px solid var(--color-border);
+    padding-block: var(--space-md);
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+}

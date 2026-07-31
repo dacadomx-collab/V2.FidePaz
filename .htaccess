@@ -1,0 +1,161 @@
+# =============================================================================
+# PROYECTO  : FidePaz V2.0 - Web Pública
+# ARCHIVO   : .htaccess (Raíz)
+# PROPÓSITO : Perímetro de la web pública estática. NO enruta /api/v2 (eso lo
+#             sirve el binario Go de backend/, por su cuenta o vía proxy a
+#             nivel de servidor/vhost — no configurable desde .htaccess, ver
+#             FIDEPAZ_V1_VS_V2_COMPARISON.md). NO enruta /administrator (tiene
+#             su propio .htaccess para el SPA Angular).
+# =============================================================================
+
+# ── NIVEL 0: SEGURIDAD GLOBAL ─────────────────────────────────────────────────
+Options -Indexes
+DirectoryIndex index.html
+ServerSignature Off
+
+# Forzar HTTPS — desactivar en entorno local (XAMPP sin certificado).
+# En producción (APP_ENV=production) este bloque debe estar activo siempre.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ── NIVEL 1: BLOQUEO DE ARCHIVOS CRÍTICOS ────────────────────────────────────
+# Material criptográfico
+<FilesMatch "(?i)^(id_rsa|id_rsa\.pub|.*\.pem|.*\.ppk|.*\.key|.*\.crt|.*\.cer)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Archivos de configuración, secretos, pipelines, bases de datos y
+# documentación interna de gobernanza (CLAUDE.md, comparativas, etc. — no son
+# contenido para el público del sitio)
+<FilesMatch "(?i)\.(env|sql|log|bak|ini|yml|yaml|lock|phar|sh|bash|md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Dotfiles (.env, .gitignore, .htaccess — bloquea acceso HTTP al archivo en sí)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Archivos de reconocimiento de servidor (WP-Hunter, info de versiones)
+<FilesMatch "^(phpinfo\.php|xmlrpc\.php|readme\.html|README\.md|CHANGELOG\.md|composer\.json|composer\.lock|package\.json|package-lock\.json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ── NIVEL 2: CABECERAS DE SEGURIDAD HTTP ──────────────────────────────────────
+<IfModule mod_headers.c>
+    # Previene Clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Fuerza HTTPS (HSTS) — activar solo si el sitio tiene SSL válido
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # Deshabilita la adivinación de tipos MIME
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Filtro XSS transversal (legado, CSP es la defensa principal)
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # Política de referencia — no filtra origen en mismo sitio, oculta a externos
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Política de permisos (deshabilita APIs sensibles del navegador por defecto)
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+
+    # Content Security Policy — ajustar según CDNs y APIs externas del proyecto
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'self';"
+
+    # Ocultar firma del servidor
+    Header always unset X-Powered-By
+    Header always unset Server
+</IfModule>
+
+# ── NIVEL 3: BLOQUEO PERIMETRAL DE CARPETAS INTERNAS ─────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Bloquear acceso a carpetas internas reales de este proyecto
+    RewriteRule (^|/)knowledge(/|$)          - [F,L,NC]
+    RewriteRule (^|/)backend(/|$)            - [F,L,NC]
+    RewriteRule (^|/)db(/|$)                 - [F,L,NC]
+    RewriteRule (^|/)logs(/|$)               - [F,L,NC]
+    RewriteRule (^|/)BackUp_28_Julio_2026(/|$) - [F,L,NC]
+
+    # Bloqueadas por defensa en profundidad aunque no existan hoy en la raíz
+    # (quedaban del scaffold genérico; si algo similar reaparece, sigue blindado)
+    RewriteRule (^|/)\.git(/|$)              - [F,L,NC]
+    RewriteRule (^|/)\.github(/|$)           - [F,L,NC]
+    RewriteRule (^|/)\.claude(/|$)           - [F,L,NC]
+    RewriteRule (^|/)backups(/|$)            - [F,L,NC]
+    RewriteRule (^|/)tests(/|$)              - [F,L,NC]
+    RewriteRule (^|/)vendor(/|$)             - [F,L,NC]
+    RewriteRule (^|/)node_modules(/|$)       - [F,L,NC]
+    RewriteRule (^|/)scripts(/|$)            - [F,L,NC]
+    RewriteRule (^|/)helpers(/|$)             - [F,L,NC]
+    RewriteRule (^|/)validators(/|$)          - [F,L,NC]
+
+    # ── NIVEL 4: RUTAS FÍSICAS (assets/, administrator/, index.html) pasan sin reescritura ──
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Este sitio público es 100% estático (HTML/CSS/JS) — no hay front controller
+    # PHP central. Cualquier ruta que no sea un archivo/carpeta real (fuera de
+    # /administrator y /api/v2, que tienen su propio manejo) simplemente no
+    # existe y Apache devuelve 404 de forma natural.
+</IfModule>
+
+# ── NIVEL 6: COMPRESIÓN GZIP (performance) ───────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+    AddOutputFilterByType DEFLATE application/javascript application/json
+    AddOutputFilterByType DEFLATE application/x-javascript text/javascript
+    AddOutputFilterByType DEFLATE application/xml application/xhtml+xml
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ── NIVEL 7: CACHÉ DE ACTIVOS ESTÁTICOS ──────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png  "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType text/css   "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType application/json "access plus 0 seconds"
+</IfModule>
+
+# ── PÁGINAS DE ERROR PERSONALIZADAS ───────────────────────────────────────────
+ErrorDocument 400 "Solicitud inválida."
+ErrorDocument 401 "Autenticación requerida."
+ErrorDocument 403 "Acceso denegado."
+ErrorDocument 404 "Recurso no encontrado."
+ErrorDocument 500 "Error interno del servidor."

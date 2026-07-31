@@ -1,0 +1,40 @@
+name: Deploy FidePaz V2.0 Staging
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Build backend binary (Linux, para el hosting cPanel)
+        working-directory: backend
+        run: go build -o fidepaz-backend .
+
+      - name: Deploy to staging via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftp.mercageek.com
+          port: 21
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: /home/mercagee/public_html/v2.fidepaz.org/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/BackUp_28_Julio_2026/**
+            **/knowledge/**
+            **/*.sql
+            **/.env
+            **/.env.*
