@@ -31,8 +31,11 @@ jobs:
           port: 21
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          # La cuenta FTP ftp_user@v2.fidepaz.org ya tiene su raíz acotada en cPanel a
+          # /home/mercagee/public_html/v2.fidepaz.org/ — pasar esa ruta completa aquí la anidaba
+          # una segunda vez. server-dir debe ser relativo a la raíz de la cuenta FTP.
           local-dir: ./
-          server-dir: /home/mercagee/public_html/v2.fidepaz.org/
+          server-dir: ./
           exclude: |
             **/.git*
             **/.git*/**
