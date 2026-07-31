@@ -15,6 +15,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Build backend binary (Linux, para el hosting cPanel)
         working-directory: backend
@@ -23,7 +24,10 @@ jobs:
       - name: Deploy to staging via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ftp.mercageek.com
+          # ftp.mercageek.com resuelve a IPs anycast de Cloudflare (proxy "orange cloud"),
+          # que no reenvía TCP/FTP crudo en el puerto 21 (Cloudflare nunca protegió el FTP,
+          # solo HTTP/HTTPS) — se usa el hostname real del servidor cPanel para FTP.
+          server: chir205.websitehostserver.net
           port: 21
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
