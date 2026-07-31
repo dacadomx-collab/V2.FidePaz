@@ -35,6 +35,9 @@ func main() {
 
 	api := router.Group("/api/v2")
 	{
+		api.GET("", apiStatus)
+		api.GET("/", apiStatus)
+
 		api.POST("/auth/login", middleware.RateLimit(10, 5*time.Minute), handlers.Login)
 		api.POST("/contact", middleware.RateLimit(5, 10*time.Minute), handlers.Contact)
 
@@ -73,4 +76,12 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-var _ = http.StatusOK // evita import no usado si se recorta el bloque estático en el futuro
+// apiStatus — GET /api/v2 y GET /api/v2/. Evita el 404 plano de Gin cuando se
+// navega directamente a la raíz del prefijo (p. ej. health check manual).
+func apiStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":      "ok",
+		"system":      "FidePaz Core API v2.0",
+		"environment": envOr("APP_ENV", "development"),
+	})
+}

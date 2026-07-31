@@ -121,6 +121,13 @@ video {
     width: auto;
 }
 
+.brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    text-decoration: none;
+}
+
 .site-nav {
     display: flex;
     flex-wrap: wrap;
@@ -185,6 +192,10 @@ video {
     text-decoration: none;
     cursor: pointer;
     min-height: 44px; /* objetivo táctil accesible, mobile-first */
+}
+
+.btn-nav {
+    padding: 0.5rem 1rem;
 }
 
 .btn:hover,
