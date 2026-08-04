@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,17 +50,31 @@ func main() {
 
 	// Servidor estático embebido: permite correr el binario de forma
 	// independiente (sin Apache/Nginx delante) sirviendo directamente
-	// el build de Angular en ../administrator. Si se despliega detrás
-	// de Apache/cPanel, esta parte es opcional (Apache sirve los
-	// estáticos y solo reenvía /api/v2 a este proceso).
+	// el build de Angular en ../administrator bajo el prefijo /administrator/
+	// (mismo path que usa el <base href> del build y que usa Apache en
+	// producción). Si se despliega detrás de Apache/cPanel, esta parte es
+	// opcional (Apache sirve los estáticos y solo reenvía /api/v2 a este
+	// proceso).
+	//
+	// Bug corregido (2026-08-04): antes se registraba router.Static("/assets",
+	// staticDir), pero administrator/ no tiene ninguna subcarpeta assets/ —
+	// son archivos sueltos (main.*.js, styles.*.css, etc.) que el <base
+	// href="/administrator/"> del index.html referencia como rutas relativas
+	// bajo /administrator/. Sin una ruta que sirviera esos nombres de archivo
+	// reales, cualquier request a /administrator/main.*.js caía en NoRoute y
+	// devolvía el HTML de index.html con Content-Type equivocado -> el
+	// navegador no podía parsear el JS -> pantalla en blanco.
 	staticDir := envOr("STATIC_DIR", "../administrator")
 	if info, err := os.Stat(staticDir); err == nil && info.IsDir() {
 		router.Use(gin.Logger())
-		router.Static("/assets", staticDir)
+		router.Static("/administrator", staticDir)
 		router.NoRoute(func(c *gin.Context) {
-			c.File(staticDir + "/index.html") // fallback SPA (rutas Angular del lado cliente)
+			if strings.HasPrefix(c.Request.URL.Path, "/administrator") {
+				c.File(staticDir + "/index.html") // fallback SPA (rutas Angular del lado cliente)
+				return
+			}
+			c.Status(http.StatusNotFound)
 		})
-		router.StaticFile("/", staticDir+"/index.html")
 	}
 
 	port := envOr("PORT", "8080")
