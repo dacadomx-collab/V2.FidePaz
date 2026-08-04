@@ -23,11 +23,17 @@ function handle_catalog(string $which): void
 {
     Auth::requireUser();
 
-    $table = match ($which) {
-        'streets' => 'street',
-        'quotas'  => 'quota',
-        default   => null,
-    };
+    // Nota de compatibilidad: sin "match" (PHP 8.0+) — este cPanel corre PHP 7.4.
+    switch ($which) {
+        case 'streets':
+            $table = 'street';
+            break;
+        case 'quotas':
+            $table = 'quota';
+            break;
+        default:
+            $table = null;
+    }
     if ($table === null) {
         Response::error(404, 'Catálogo no encontrado');
     }
