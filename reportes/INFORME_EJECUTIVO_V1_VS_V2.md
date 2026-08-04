@@ -102,12 +102,41 @@ en el repo actual.
      false`) y solo se puede activar con privilegios root/WHM — fuera del alcance de la cuenta
      `mercagee`.
 
-**Plan aprobado:** solicitar a soporte de GreenGeeks que active el CloudLinux Node.js Selector
-para la cuenta `mercagee`. Una vez activo, se registrará una app Node.js mínima (wrapper, sin
-reescribir el backend) bajo Passenger en `v2.fidepaz.org/api/v2`, que arranca y hace proxy
-directo al binario Go real ya probado — evitando una migración de lenguaje o de hosting.
-Alternativa de respaldo si GreenGeeks no lo activa: migrar solo el backend Go a un VPS/PaaS
-(Railway/Fly.io), dejando el frontend estático donde está.
+**Gestión con GreenGeeks:** se solicitó activar el CloudLinux Node.js Selector para la cuenta
+`mercagee`. Respuesta de soporte (2026-08-04): **Node.js está restringido en este plan de
+hosting compartido** (requiere upgrade a VPS/Premium) — descarta la ruta del wrapper Node.js.
+
+**✅ RESUELTO — Backend Fallback PHP 8.2+ nativo desplegado en producción (2026-08-04):**
+Dado que ni Go ni Node.js pueden exponerse públicamente en este hosting compartido, se activó la
+arquitectura de contingencia ya prevista: una API REST en PHP nativo bajo `api/v2/`, servida
+directamente por Apache (PHP corre nativo en cualquier cPanel, sin necesidad de Passenger/proxy).
+
+- **Reutiliza, no reemplaza:** implementa el mismo contrato que el backend Go
+  (`backend/main.go`) — mismas 8 rutas, mismo esquema de BD, mismo formato de respuesta JSON —
+  para que el frontend Angular no requiera ningún cambio. El binario Go permanece como la
+  arquitectura objetivo; el PHP es la vía de contingencia mientras el hosting no soporte
+  procesos persistentes.
+- **Seguridad equivalente:** PDO con prepared statements al 100%, BCrypt (`password_verify`,
+  compatible con los hashes ya generados por Go), JWT HS256 propio (mismo `JWT_SECRET` que el
+  backend Go, sin dependencias externas/Composer), CORS por whitelist explícita, rate limiting
+  por IP (10 intentos/5min en login, 5 mensajes/10min en contacto, fail-open si el filesystem no
+  es escribible), manejo de errores que nunca expone una página en blanco ni detalles internos
+  (salvo `APP_DEBUG=true` explícito).
+- **Incidente durante el despliegue:** el primer intento devolvió `500` en todas las rutas
+  protegidas — causa raíz: uso de `match()` (sintaxis PHP 8.0+) en `routes/users.php`, pero el
+  cPanel real corre **PHP 7.4.33**. Corregido a `switch` compatible, verificado con el binario
+  PHP 7.4 real del servidor (`/opt/alt/php74`) antes de reintentar.
+- **Prueba de fuego en vivo (`https://v2.fidepaz.org/api/v2`, 2026-08-04):**
+  - `GET /api/v2/` → `200 {"status":"ok","system":"FidePaz Core API v2.0 (PHP fallback)",...}`
+  - `GET /api/v2/properties` (sin token) → `401` limpio, sin exponer detalle interno.
+  - `POST /api/v2/auth/login` (credenciales inválidas) → `401 "Credenciales inválidas"`.
+  - `POST /api/v2/contact` (payload de prueba) → `200`, registro confirmado en
+    `contact_messages` de la BD real y eliminado tras la verificación.
+
+**Pendiente (no bloqueante):** si GreenGeeks reconsidera o el proyecto migra a un plan con
+soporte de Node.js/VPS, el plan original (wrapper Node.js + binario Go) sigue siendo la
+arquitectura de destino preferida a mediano plazo — el fallback PHP se mantiene documentado como
+tal en `modulos/MODULO_02_REPORTES_Y_AUDITORIAS.md` y no reemplaza esa decisión.
 
 ---
 
