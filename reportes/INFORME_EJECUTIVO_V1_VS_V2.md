@@ -181,6 +181,22 @@ Hashes BCrypt generados con `password_hash(..., PASSWORD_BCRYPT, ['cost'=>10])` 
 prefijo `$2y$` (no `$2b$` como se pidió textualmente); son equivalentes para `password_verify()`
 y para la librería bcrypt de Go, no hay diferencia funcional ni de seguridad.
 
+**⚠️ Cuenta `admin@hotmail.com` (`super_admin`) — riesgo de seguridad aceptado explícitamente por
+el Arquitecto (2026-08-04):** creada a solicitud directa con contraseña `123123`. Se advirtió
+antes de ejecutar que es una de las contraseñas más filtradas/adivinables que existen, y que la
+cuenta queda alcanzable en una URL pública conocida (`v2.fidepaz.org/administrator/`, tras la
+redirección de `administrator.fidepaz.org` — ver hallazgo 2 abajo) con privilegios totales. El
+Arquitecto confirmó explícitamente que procediera bajo su propia responsabilidad. Login
+verificado en vivo: `POST /api/v2/auth/login` → `200 OK`, JWT válido con `role: super_admin`. La
+única mitigación activa sobre esta cuenta es el rate limiting ya existente (10 intentos/5min por
+IP en el fallback PHP). **Recomendación que queda en pie:** cambiar esta contraseña por una
+fuerte en cuanto sea posible.
+
+**✅ Redirección `administrator.fidepaz.org` → `v2.fidepaz.org/administrator/` (2026-08-04):** el
+panel Angular viejo (pre-Go, ver hallazgo abierto de la sección anterior) queda retirado de
+circulación; `.htaccess` original respaldado como `.htaccess.bak_2026-08-04` en el mismo
+directorio del servidor. Verificado en vivo: `301 -> https://v2.fidepaz.org/administrator/`.
+
 **🔧 Bug adicional encontrado y corregido (Go standalone, `backend/main.go`):** el servidor
 estático embebido registraba `router.Static("/assets", staticDir)`, pero `administrator/` no
 tiene subcarpeta `assets/` — son archivos sueltos. Cualquier request a
