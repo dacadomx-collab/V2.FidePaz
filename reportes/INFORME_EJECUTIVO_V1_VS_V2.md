@@ -142,12 +142,44 @@ tal en `modulos/MODULO_02_REPORTES_Y_AUDITORIAS.md` y no reemplaza esa decisión
 
 ## 📦 5. INTEGRIDAD Y RESCATE DE DATOS (MIGRACIÓN)
 
-- **Residentes/colonos migrados:** 218 cuentas.
-- **Propiedades registradas:** 198 propiedades.
-- **Historial de cuotas/pagos preservado:** 10,758 registros.
-- **Fuente:** `mercagee_colonoscore` (955 KB) → `fidepaz_v2_db`, excluyendo la tabla `extras`.
-- **Verificación pendiente (checklist):** confirmación explícita de FKs entre `user_quotas` /
-  `property` / `user`, y `EXPLAIN` de las queries de cuotas sobre los 5 índices ya creados.
+- **Residentes/colonos migrados:** 206 cuentas reales (+2 cuentas de prueba QA, ver abajo).
+- **Propiedades registradas:** 196 propiedades.
+- **Historial de cuotas/pagos preservado:** 8,547 registros en `user_quotas`.
+- **Fuente:** `mercagee_colonoscore` (955 KB) → `mercagee_v2_FidePaz_DB`, excluyendo `extras`.
+
+**✅ Verificación de FKs e índices — CERRADA (2026-08-04, contra la BD real en producción):**
+- 4 llaves foráneas confirmadas: `property.quota_id → quota.id`, `property.street_id →
+  street.id`, `user_quotas.property_id → property.id`, `user_quotas.user_id → user.id`.
+- `EXPLAIN` sobre las dos queries reales de cuotas (`WHERE property_id=... ORDER BY due_date` y
+  `WHERE user_id=... ORDER BY due_date`) confirma `type: ref` usando
+  `idx_uq_property_duedate` / `idx_uq_user_duedate` respectivamente — sin full table scan.
+
+**✅ Cuentas de prueba QA activas (creadas 2026-08-04, ver `api/v2/routes/auth.php`):**
+| Cuenta | Email | Rol | Verificación |
+| :--- | :--- | :--- | :--- |
+| Admin | `admin.test@fidepaz.org` | `admin` | Login OK, `GET /users` → 200 |
+| Colono | `colono.test@fidepaz.org` | `owner` | Login OK, `GET /users` → 403 (correcto), `GET /user-quotas` → 200 |
+
+Hashes BCrypt generados con `password_hash(..., PASSWORD_BCRYPT, ['cost'=>10])` — PHP produce
+prefijo `$2y$` (no `$2b$` como se pidió textualmente); son equivalentes para `password_verify()`
+y para la librería bcrypt de Go, no hay diferencia funcional ni de seguridad.
+
+**🔧 Bug adicional encontrado y corregido (Go standalone, `backend/main.go`):** el servidor
+estático embebido registraba `router.Static("/assets", staticDir)`, pero `administrator/` no
+tiene subcarpeta `assets/` — son archivos sueltos. Cualquier request a
+`/administrator/main.*.js` caía en el fallback SPA y devolvía HTML con `Content-Type` de JS
+equivocado → pantalla en blanco también en `localhost:8080/administrator/` (además del bug de
+`base href` ya corregido, que afectaba solo a producción). Corregido a
+`router.Static("/administrator", staticDir)` + fallback SPA condicionado al prefijo
+`/administrator`. Verificado localmente: `main.js` → `text/javascript`, `styles.css` →
+`text/css`, rutas cliente de Angular (`/administrator/dashboard`) → `text/html` (fallback SPA
+correcto).
+
+**⏳ Pendiente — Galería del landing page:** se pidió reorganizar la galería visual del landing
+usando imágenes existentes, pero `assets/img/` solo contiene el logo (`fidepaz-logo.png`,
+`logo.svg`) — no existe ninguna galería de fotos en el proyecto ni en el servidor. No se fabricó
+contenido de relleno; queda pendiente que el Arquitecto proporcione las imágenes reales antes de
+construir esa sección.
 
 ---
 
