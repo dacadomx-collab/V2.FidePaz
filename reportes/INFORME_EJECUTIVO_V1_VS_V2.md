@@ -82,13 +82,32 @@ corriendo ni una regla de proxy reverso hacia él, por lo que `/api/v2` devuelve
 reglas heredadas de una arquitectura PHP previa (`administrator/api/index.php`) que ya no existe
 en el repo actual.
 
-**Pendiente de decisión:** para dejar el backend accesible se necesita alguna de estas rutas:
-1. Acceso SSH al hosting cPanel para arrancar el binario como proceso persistente
-   (systemd/supervisor/`nohup` + `@reboot` en cron), más una regla de `ProxyPass` en Apache hacia
-   `localhost:8080`, o
-2. Mover el backend Go a una plataforma que sostenga procesos persistentes de forma nativa (VPS
-   pequeño, Railway, Fly.io, etc.), dejando el frontend estático en cPanel y apuntando el
-   `apiUrl` de Angular a esa nueva URL.
+**✅ Auditoría remota vía SSH (2026-08-04, acceso otorgado por el Arquitecto):**
+
+1. **Build corregido:** el binario se compilaba con enlace dinámico contra una `glibc` más nueva
+   (2.34/2.32) que la del servidor (`glibc 2.28`), y fallaba con `GLIBC_2.34 not found` al
+   ejecutarse. Corregido en `.github/workflows/deploy.yml` (`CGO_ENABLED=0` → binario estático).
+   Verificado en producción tras el redeploy: el binario ya arranca sin error.
+2. **`backend/.env` faltante en el servidor** (excluido a propósito del FTP por seguridad, pero
+   nunca se colocó manualmente). Copiado por SCP directo al servidor; el binario ya conecta
+   correctamente a `mercagee_v2_FidePaz_DB` y expone las 8 rutas de `/api/v2` en local
+   (`127.0.0.1:8080`), confirmado con una corrida de prueba en vivo.
+3. **🔴 Bloqueador final confirmado — sin ruta de exposición pública nativa:** este hosting
+   compartido (cPanel/CloudLinux, cuenta `mercagee`) no tiene ningún mecanismo de usuario para
+   exponer un proceso propio al público:
+   - Sin `mod_proxy`/`ProxyPass` autogestionable desde `.htaccess` en shared hosting.
+   - El "Application Manager" (`cloudlinux-selector`, motor de Passenger) solo soporta
+     interpretes **PHP / Node.js / Python** — no binarios Go arbitrarios.
+   - El selector de **Node.js está deshabilitado a nivel de servidor** (`selector_enabled:
+     false`) y solo se puede activar con privilegios root/WHM — fuera del alcance de la cuenta
+     `mercagee`.
+
+**Plan aprobado:** solicitar a soporte de GreenGeeks que active el CloudLinux Node.js Selector
+para la cuenta `mercagee`. Una vez activo, se registrará una app Node.js mínima (wrapper, sin
+reescribir el backend) bajo Passenger en `v2.fidepaz.org/api/v2`, que arranca y hace proxy
+directo al binario Go real ya probado — evitando una migración de lenguaje o de hosting.
+Alternativa de respaldo si GreenGeeks no lo activa: migrar solo el backend Go a un VPS/PaaS
+(Railway/Fly.io), dejando el frontend estático donde está.
 
 ---
 
