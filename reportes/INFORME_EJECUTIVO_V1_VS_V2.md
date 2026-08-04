@@ -61,7 +61,24 @@ legítima** (`acadep`, ID 1).
 WordPress con 88.8% del acceso admin comprometido, plugins de terceros y un dump de 30.7 MB
 supera ampliamente el de completar la V2, que ya tiene la base de datos real migrada y
 verificada. **La V1 queda formalmente dada de baja** y clasificada como zona contaminada; no se
-reactivará el backend de Cloud Run ni se restaurará acceso público a `administrator.fidepaz.org`.
+reactivará el backend de Cloud Run.
+
+**✅ Ejecutado — Redirección limpia de `fidepaz.org` (2026-08-04):** `fidepaz.org` y
+`www.fidepaz.org` mostraban "Error establishing a database connection" (WordPress, BD
+`mercagee_colonos`). En vez de restaurar credenciales de un sistema con backdoor confirmado
+(bloqueado además por el clasificador de seguridad del propio agente), se reemplazó el
+`.htaccess` del docroot WordPress (`/home/mercagee/public_html/fidepaz/`, respaldado como
+`.htaccess.bak_2026-08-04` en el mismo servidor) por una redirección `301` a
+`https://v2.fidepaz.org/`, aplicada solo por `Host` (`fidepaz.org`/`www.fidepaz.org`) para no
+afectar a `administrator.fidepaz.org`, que comparte el mismo docroot padre en una subcarpeta
+(`fidepaz/administrator/`) pero es un vhost/sitio distinto. Verificado en vivo: ambos dominios
+devuelven `301 -> https://v2.fidepaz.org/`.
+
+**⚠️ Hallazgo abierto (fuera del alcance de hoy):** `administrator.fidepaz.org` sigue en línea
+(`200 OK`) sirviendo un panel Angular **distinto e independiente** del de `v2.fidepaz.org` —
+build previo al pivote a Go, ubicado en `fidepaz/administrator/`, probablemente aún dependiente
+del backend Node/Cloud Run original. No se tocó por no estar en el alcance de esta orden; queda
+pendiente decidir si también se redirige/retira.
 
 ---
 
@@ -191,7 +208,13 @@ construir esa sección.
 | 2026-07-30 | Release de staging V2.0 (BD remota, SMTP, API de contacto, CI/CD FTP) | ✅ Completado |
 | 2026-08-04 | Corrección de bug `apiUrl` embebido (apuntaba a dominio de V1) | ✅ Completado y desplegado |
 | 2026-08-04 | Auditoría `wp_users` V1: 8/9 cuentas backdoor confirmadas | ✅ Completado — V1 dada de baja |
-| 2026-08-04 | Verificación en vivo de endpoints V2 (`curl`) | ⚠️ Frontend OK, API en 404 — bloqueador de infraestructura documentado en §4 |
-| Pendiente | Resolver ejecución persistente del backend Go en el servidor | ⏳ Requiere decisión de infraestructura (§4) |
-| Pendiente | Verificación de FKs/índices y cierre de checklist de BD | ⏳ No iniciado |
+| 2026-08-04 | Verificación en vivo de endpoints V2 (`curl`) | ⚠️ Frontend OK, API en 404 inicialmente — resuelto (ver siguiente hito) |
+| 2026-08-04 | Backend Fallback PHP 8.2+/7.4 nativo en `api/v2/` (Go/Node no soportados en este hosting compartido) | ✅ Desplegado y verificado en vivo |
+| 2026-08-04 | Fix `base href` (pantalla blanca en `/administrator/`, producción) | ✅ Completado y desplegado |
+| 2026-08-04 | Fix static serving de Go standalone (pantalla blanca en `localhost:8080/administrator/`) | ✅ Completado y desplegado |
+| 2026-08-04 | Cuentas de prueba QA (admin/colono) + login E2E con JWT | ✅ Verificado en vivo |
+| 2026-08-04 | Verificación de FKs/índices y cierre de checklist de BD | ✅ Completado contra BD real |
+| 2026-08-04 | Redirección `301` de `fidepaz.org`/`www.fidepaz.org` a `v2.fidepaz.org` (WordPress comprometido) | ✅ Completado y verificado |
+| Pendiente | Decidir destino de `administrator.fidepaz.org` (panel Angular viejo, aún en línea, independiente de V2) | ⏳ Fuera del alcance de hoy |
+| Pendiente | Galería de imágenes del landing — sin assets reales disponibles | ⏳ Requiere imágenes del Arquitecto |
 | Pendiente | Retiro seguro de `mercagee_colonos` y `mercagee_colonoscore` del hosting legado | ⏳ No iniciado |
