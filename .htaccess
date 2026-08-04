@@ -1,11 +1,13 @@
 # =============================================================================
 # PROYECTO  : FidePaz V2.0 - Web Pública
 # ARCHIVO   : .htaccess (Raíz)
-# PROPÓSITO : Perímetro de la web pública estática. NO enruta /api/v2 (eso lo
-#             sirve el binario Go de backend/, por su cuenta o vía proxy a
-#             nivel de servidor/vhost — no configurable desde .htaccess, ver
-#             FIDEPAZ_V1_VS_V2_COMPARISON.md). NO enruta /administrator (tiene
-#             su propio .htaccess para el SPA Angular).
+# PROPÓSITO : Perímetro de la web pública estática. NO enruta /api/v2 (tiene su
+#             propio front controller y .htaccess en api/v2/ — API de
+#             contingencia en PHP nativo, activa mientras el binario Go de
+#             backend/ no pueda exponerse públicamente en este hosting
+#             compartido; ver reportes/INFORME_EJECUTIVO_V1_VS_V2.md,
+#             hallazgo de infraestructura 2026-08-04). NO enruta /administrator
+#             (tiene su propio .htaccess para el SPA Angular).
 # =============================================================================
 
 # ── NIVEL 0: SEGURIDAD GLOBAL ─────────────────────────────────────────────────
@@ -126,9 +128,12 @@ ServerSignature Off
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # Este sitio público es 100% estático (HTML/CSS/JS) — no hay front controller
-    # PHP central. Cualquier ruta que no sea un archivo/carpeta real (fuera de
-    # /administrator y /api/v2, que tienen su propio manejo) simplemente no
+    # La web pública en sí es 100% estática (HTML/CSS/JS) y no tiene front
+    # controller propio aquí. /api/v2/ SÍ tiene su propio front controller
+    # (api/v2/index.php) resuelto por api/v2/.htaccess cuando Apache desciende
+    # a esa carpeta real — no requiere reglas adicionales en este archivo.
+    # /administrator/ igual tiene su propio .htaccess para el fallback SPA.
+    # Cualquier otra ruta que no sea un archivo/carpeta real simplemente no
     # existe y Apache devuelve 404 de forma natural.
 </IfModule>
 

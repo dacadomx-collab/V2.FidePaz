@@ -1,0 +1,19 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# Bloquear acceso directo a archivos internos si alguien navega a la carpeta.
+# Se soportan ambas sintaxis (Apache 2.4 "Require" y 2.2 "Order/Deny") para
+# que esto nunca sea la causa de un 500 por directiva no reconocida.
+<FilesMatch "\.(env|example|sql|md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
