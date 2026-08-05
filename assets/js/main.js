@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Cada módulo se inicializa de forma aislada: si uno falla, no debe
     // impedir que los demás (menú, slider, modal, etc.) sigan funcionando.
-    [initContactForm, initThemeToggle, initScrollTop, initHeroSlider, initNewsModal, initSmoothNav]
+    [initContactForm, initThemeToggle, initScrollTop, initHeroSlider, initNewsModal, initSmoothNav, initHeaderShadow, initRevealOnScroll]
         .forEach((init) => {
             try {
                 init();
@@ -33,6 +33,51 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 });
+
+// Sombra sutil en el menú fijo solo cuando ya hay contenido detrás (a partir
+// de 8px de scroll) -- evita que se vea "pegada" al fondo cuando está arriba.
+function initHeaderShadow() {
+    const header = document.getElementById('site-header');
+    if (!header) {
+        return;
+    }
+    const update = () => header.classList.toggle('is-scrolled', window.scrollY > 8);
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+}
+
+// Aparición progresiva de secciones al entrar en pantalla (IntersectionObserver
+// nativo, sin librerías). Respeta prefers-reduced-motion: si el visitante lo
+// pidió, todo se muestra de inmediato sin animar.
+function initRevealOnScroll() {
+    const targets = document.querySelectorAll('main > section, .card, .news-card, .board-card');
+    if (!targets.length) {
+        return;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        targets.forEach((el) => el.classList.add('is-visible'));
+        return;
+    }
+
+    if (!('IntersectionObserver' in window)) {
+        targets.forEach((el) => el.classList.add('is-visible'));
+        return;
+    }
+
+    targets.forEach((el) => el.classList.add('reveal-on-scroll'));
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+    targets.forEach((el) => observer.observe(el));
+}
 
 // Hero slider: rotación automática entre las fotos reales del fraccionamiento,
 // con puntos de navegación generados dinámicamente. Pausa la rotación si el
@@ -99,7 +144,7 @@ const NEWS_CONTENT = {
     'convocatoria-segunda-asamblea': {
         title: 'Convocatoria segunda asamblea',
         date: '31 de enero, 2023',
-        html: '<img src="assets/img/noticia-convocatoria-segunda-asamblea.jpg" alt="Convocatoria a la Segunda Asamblea General Extraordinaria de Colonos"><p><a class="btn" href="assets/docs/convocatoria-segunda-asamblea-2023.pdf" target="_blank" rel="noopener">Descargar PDF original</a></p>',
+        html: '<picture><source srcset="assets/img/noticia-convocatoria-segunda-asamblea.webp" type="image/webp"><img src="assets/img/noticia-convocatoria-segunda-asamblea.jpg" alt="Convocatoria a la Segunda Asamblea General Extraordinaria de Colonos"></picture><p><a class="btn" href="assets/docs/convocatoria-segunda-asamblea-2023.pdf" target="_blank" rel="noopener">Descargar PDF original</a></p>',
     },
     'proyecto-reforma': {
         title: 'Proyecto de reforma al reglamento interno FidePaz',
@@ -109,7 +154,7 @@ const NEWS_CONTENT = {
     'cuidemos-agua': {
         title: '¡Cuidemos el agua!',
         date: '24 de agosto, 2022',
-        html: '<img src="assets/img/noticia-cuidemos-el-agua.jpg" alt=""><p>¡Todos podemos ayudar! ¡Cuidemos el agua!</p>',
+        html: '<picture><source srcset="assets/img/noticia-cuidemos-el-agua.webp" type="image/webp"><img src="assets/img/noticia-cuidemos-el-agua.jpg" alt=""></picture><p>¡Todos podemos ayudar! ¡Cuidemos el agua!</p>',
     },
     'educando-mascota': {
         title: '¡Educando a mi mascota y a mí!',

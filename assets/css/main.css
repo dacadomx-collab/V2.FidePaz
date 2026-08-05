@@ -169,6 +169,19 @@ video {
     gap: var(--space-sm);
     padding-block: var(--space-sm);
     border-bottom: 1px solid var(--color-border);
+    /* Menú fijo (2026-08-05): sticky en vez de fixed -- se mantiene arriba al
+       hacer scroll sin sacarlo del flujo del documento (no hace falta
+       compensar con padding-top en <body>). Fondo solido obligatorio porque
+       el contenido ya no se detiene al llegar al header. */
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background-color: var(--color-bg);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.site-header.is-scrolled {
+    box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.15);
 }
 
 .site-header .logo {
@@ -193,9 +206,23 @@ video {
 }
 
 .site-nav a {
+    position: relative;
     color: var(--color-text);
     text-decoration: none;
     font-weight: 500;
+}
+
+/* Subrayado animado (efecto sutil, sin librerias): crece desde el centro al
+   pasar el cursor, en vez de un simple cambio de color plano. */
+.site-nav > li > a:not(.btn)::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -4px;
+    width: 0;
+    height: 2px;
+    background-color: var(--color-primary);
+    transition: width 0.25s ease, left 0.25s ease;
 }
 
 .site-nav a:hover,
@@ -203,10 +230,29 @@ video {
     color: var(--color-primary);
 }
 
-.header-actions {
+.site-nav > li > a:not(.btn):hover::after,
+.site-nav > li > a:not(.btn):focus-visible::after {
+    width: 100%;
+    left: 0;
+}
+
+/* Item del toggle de tema dentro del nav: separado visualmente con un
+   divisor sutil para que se lea como una "orilla" propia, no un link mas. */
+.nav-edge-item {
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
+    padding-left: var(--space-sm);
+    border-left: 1px solid var(--color-border);
+}
+
+@media (max-width: 639px) {
+    .nav-edge-item {
+        padding-left: 0;
+        border-left: none;
+        padding-top: var(--space-xs);
+        border-top: 1px solid var(--color-border);
+        width: 100%;
+    }
 }
 
 .nav-toggle {
@@ -798,4 +844,56 @@ video {
 #news-modal-body img {
     border-radius: var(--radius);
     margin-block: var(--space-sm);
+}
+
+/* =============================================================================
+   EFECTOS Y PULIDO VISUAL (2026-08-05)
+   ============================================================================= */
+
+/* Aparición progresiva al hacer scroll (JS agrega reveal-on-scroll + is-visible) */
+.reveal-on-scroll {
+    opacity: 0;
+    transform: translateY(1.25rem);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal-on-scroll.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Logo con leve respuesta al pasar el cursor -- un detalle vivo, no estático */
+.brand .logo {
+    transition: transform 0.2s ease;
+}
+
+.brand:hover .logo,
+.brand:focus-visible .logo {
+    transform: scale(1.05) rotate(-2deg);
+}
+
+/* Botones primarios con leve elevación al pasar el cursor, además del cambio
+   de color ya existente -- sensación más "viva" sin exagerar. */
+.btn:not(.btn-nav) {
+    transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.btn:not(.btn-nav):hover,
+.btn:not(.btn-nav):focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -10px rgba(28, 100, 242, 0.5);
+}
+
+.btn:not(.btn-nav):active {
+    transform: translateY(0);
+}
+
+/* Tarjetas institucionales (Nosotros, Consejo, etc.) con elevación sutil */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.arf-grid .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 24px -14px rgba(15, 23, 42, 0.25);
 }
