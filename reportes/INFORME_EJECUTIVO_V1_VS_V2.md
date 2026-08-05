@@ -2,7 +2,7 @@
 
 **Fecha de actualización:** 4 de agosto de 2026
 **Autor:** Dirección Técnica & Core Architecture
-**Estado:** 🔴 V1 dada de baja (Zona Contaminada) · 🟡 V2 en despliegue — bloqueador de infraestructura activo
+**Estado:** 🔴 V1 dada de baja y redirigida a V2 · 🟢 V2 en producción — API, login, panel admin y landing operativos
 
 > **Nota metodológica:** este informe solo reporta cifras verificadas contra el código, los
 > dumps SQL y pruebas en vivo. Donde no existe una medición real (p. ej. tiempos de respuesta
@@ -208,11 +208,27 @@ equivocado → pantalla en blanco también en `localhost:8080/administrator/` (a
 `text/css`, rutas cliente de Angular (`/administrator/dashboard`) → `text/html` (fallback SPA
 correcto).
 
-**⏳ Pendiente — Galería del landing page:** se pidió reorganizar la galería visual del landing
-usando imágenes existentes, pero `assets/img/` solo contiene el logo (`fidepaz-logo.png`,
-`logo.svg`) — no existe ninguna galería de fotos en el proyecto ni en el servidor. No se fabricó
-contenido de relleno; queda pendiente que el Arquitecto proporcione las imágenes reales antes de
-construir esa sección.
+**✅ Galería del landing page — RESUELTA (2026-08-04):** no había fotos en `assets/img/` ni en el
+repositorio, pero sí existían en el servidor: `wp-content/uploads/2022/05/` del WordPress legado
+(`/home/mercagee/public_html/fidepaz/`) contiene ~14,300 archivos, la gran mayoría demo del tema
+original (irrelevantes). Se identificaron y verificaron **visualmente, una por una**, 6 fotos
+reales del fraccionamiento tomadas in situ el mismo día (mayo 2022) — confirmadas sin ambigüedad
+por los letreros de calle visibles en las propias fotos, incluyendo uno que dice literalmente
+"CALLE MEDUSA — FRACC. FIDEPA[Z]". Se descartó por completo usar contenido de
+`/home/mercagee/public_html/images/` y `/home/mercagee/public_html/assets/` — pertenecen a
+**otros clientes** de la misma cuenta de hosting compartida (tienda de electrónica y otro
+proyecto inmobiliario, respectivamente), no a FidePaz.
+
+- Fotos incorporadas: `calle-medusa.jpg`, `calle-cabrilla.jpg`, `calle-camellon.jpg`,
+  `calle-palmeras.jpg`, `calle-esquina.jpg`, `calle-largosta.jpg`.
+- Redimensionadas a 800px de ancho y recomprimidas (calidad 72) — entre 42 KB y 90 KB cada una,
+  cumpliendo el límite de 100–200 KB de `knowledge/09_ESTANDAR_REPORTES_Y_AUDITORIAS.md`.
+- Sección `#galeria` agregada en `index.html` bajo el patrón `arf-grid`/`arf-col-3` ya
+  establecido en el proyecto (no Bootstrap, que no es parte del stack real). CSS nuevo en
+  `assets/css/main.css`: `aspect-ratio: 4/3` (sin anchos fijos en px) y hover atómico aislado
+  con `z-index` para que el zoom de una tarjeta no quede recortado por sus vecinas. Cero estilos
+  inline, cero `!important` (verificado: 0 usos reales, solo el comentario que lo prohíbe).
+- Verificado en vivo: las 6 imágenes responden `200 OK` en `https://v2.fidepaz.org/assets/img/`.
 
 ---
 
@@ -231,6 +247,8 @@ construir esa sección.
 | 2026-08-04 | Cuentas de prueba QA (admin/colono) + login E2E con JWT | ✅ Verificado en vivo |
 | 2026-08-04 | Verificación de FKs/índices y cierre de checklist de BD | ✅ Completado contra BD real |
 | 2026-08-04 | Redirección `301` de `fidepaz.org`/`www.fidepaz.org` a `v2.fidepaz.org` (WordPress comprometido) | ✅ Completado y verificado |
-| Pendiente | Decidir destino de `administrator.fidepaz.org` (panel Angular viejo, aún en línea, independiente de V2) | ⏳ Fuera del alcance de hoy |
-| Pendiente | Galería de imágenes del landing — sin assets reales disponibles | ⏳ Requiere imágenes del Arquitecto |
+| 2026-08-04 | Cuenta `admin@hotmail.com` (`super_admin`) restaurada — riesgo de password débil aceptado explícitamente por el Arquitecto | ✅ Login verificado en vivo |
+| 2026-08-04 | Redirección `301` de `administrator.fidepaz.org` (panel Angular viejo) a `v2.fidepaz.org/administrator/` | ✅ Completado y verificado |
+| 2026-08-04 | Rescate de 6 fotos reales del fraccionamiento desde el WordPress legado + galería ARF-Grid en landing | ✅ Desplegado y verificado en vivo |
+| Pendiente | Cambiar la contraseña débil de `admin@hotmail.com` por una fuerte | ⏳ Recomendado, no bloqueante |
 | Pendiente | Retiro seguro de `mercagee_colonos` y `mercagee_colonoscore` del hosting legado | ⏳ No iniciado |
