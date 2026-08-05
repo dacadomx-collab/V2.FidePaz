@@ -119,7 +119,7 @@ function initContactForm() {
         setStatus('', 'Enviando…');
 
         try {
-            const response = await fetch('/api/v2/contact', {
+            const response = await fetch('api/v2/contact', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, email, message }),

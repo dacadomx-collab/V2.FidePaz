@@ -1,7 +1,24 @@
 <!DOCTYPE html><html lang="en"><head>
   <meta charset="utf-8">
   <title>Administrador - Asociación de Colonos de FIDEPAZ</title>
-  <base href="/administrator/">
+  <script>
+  /* Base href dinamico (2026-08-05): calcula el prefijo real de montaje
+     buscando "/administrator/" en la URL actual, en vez de asumir un valor
+     fijo. Funciona igual en produccion (https://v2.fidepaz.org/administrator/
+     -> "/administrator/") y en XAMPP local
+     (http://localhost/FidePaz.org/administrator/ -> "/FidePaz.org/administrator/"),
+     sin necesitar dos versiones de este archivo. document.write se ejecuta
+     de forma sincrona durante el parseo del HTML, ANTES de que el navegador
+     resuelva los <link>/<script> siguientes -- por eso debe ir en esta
+     posicion exacta, antes de cualquier recurso relativo. */
+  (function () {
+    var marker = '/administrator/';
+    var path = window.location.pathname;
+    var idx = path.indexOf(marker);
+    var base = idx >= 0 ? path.slice(0, idx + marker.length) : marker;
+    document.write('<base href="' + base + '">');
+  })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
