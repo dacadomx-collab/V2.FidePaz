@@ -132,6 +132,9 @@ try {
     } elseif ($method === 'GET' && $path === '/quota') {
         // Ruta REAL que usa el panel Angular compilado para "Cuotas".
         handle_quota_catalog_list();
+    } elseif ($method === 'GET' && $path === '/payment/list-owners') {
+        // Ruta REAL que usa la pantalla "Pagos".
+        handle_payment_list_owners();
     } elseif ($method === 'GET' && $path === '/users') {
         handle_users_list();
     } elseif ($method === 'GET' && $path === '/user/filter') {

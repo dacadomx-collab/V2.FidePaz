@@ -18,6 +18,7 @@
         <ul class="site-nav">
             <li><a href="../">Sitio público</a></li>
             <li><a href="INFORME_EJECUTIVO_COLONOS.html">Informe para colonos</a></li>
+            <li><a href="EVIDENCIA_FORENSE_V1_WORDPRESS.html">Evidencia forense V1</a></li>
             <li><a href="../administrator/" class="btn btn-nav">Acceso Colonos</a></li>
         </ul>
     </nav>
@@ -98,9 +99,10 @@
                     <code>/api/v2</code>. Base de datos consolidada desde <code>mercagee_colonoscore</code>
                     (fuente real, 955 KB) hacia <code>mercagee_v2_FidePaz_DB</code>, con solo 6
                     tablas de negocio. Backend Go 1.26 + Gin compilado como binario único
-                    (arquitectura objetivo); backend PHP 7.4 nativo como fallback activo en
+                    (arquitectura objetivo); backend PHP 8.2 nativo como fallback activo en
                     producción mientras el hosting compartido no soporte procesos persistentes
-                    propios — mismo contrato de API, misma seguridad.
+                    propios — mismo contrato de API, misma seguridad. Actualizado desde PHP 7.4 a
+                    8.2 el 2026-08-05 (soporte de seguridad activo, versión con vida útil vigente).
                 </p>
             </div>
         </div>

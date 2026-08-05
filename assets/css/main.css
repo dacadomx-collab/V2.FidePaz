@@ -20,6 +20,8 @@
     --color-primary-dark: #174baa;
     --color-primary-soft: #ebf5ff;
     --color-border: #e5e7eb;
+    --color-danger: #d32f2f;
+    --color-danger-soft: #fdecea;
     --space-xs: 0.5rem;
     --space-sm: 1rem;
     --space-md: 1.5rem;
@@ -38,6 +40,8 @@
         --color-primary-dark: #1c64f2;
         --color-primary-soft: #16213b;
         --color-border: #1e293b;
+        --color-danger: #f87171;
+        --color-danger-soft: #3b1a1a;
     }
 }
 
@@ -128,6 +132,22 @@ video {
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     padding: var(--space-md);
+}
+
+.card-danger {
+    border-top: 4px solid var(--color-danger);
+}
+
+.code-block {
+    background-color: var(--color-text);
+    color: var(--color-bg);
+    padding: var(--space-sm);
+    border-radius: var(--radius);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    white-space: pre;
+    margin: var(--space-sm) 0 0;
 }
 
 /* ── GALERÍA (ARF-Grid): aspect-ratio fijo por proporción, no por px, y hover
@@ -656,6 +676,19 @@ video {
 .footer-links a:hover,
 .footer-links a:focus-visible {
     color: var(--color-primary);
+}
+
+.social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.social-link svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+    fill: currentColor;
 }
 
 .footer-legal {

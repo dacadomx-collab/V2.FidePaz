@@ -100,3 +100,122 @@ function handle_quota_catalog_list(): void
         ],
     ]);
 }
+
+/**
+ * GET /payment/list-owners?page=&search=&streets[]=&initDate=&endDate=
+ *
+ * Ruta REAL de la pantalla "Pagos" (confirmado decompilando 964.<hash>.js,
+ * componente app-owner-state/app-list-reports -- llama a
+ * `${basePath}/payment/list-owners`). El template hace su propio cálculo de
+ * "pagado" vs "pendiente" sumando `quotas[].amount` según `status`, así que
+ * este endpoint entrega los datos crudos (cuotas anidadas por colono, con
+ * calle) y los totales agregados que la vista lee directo del payload
+ * (`totalToPay`, `totalPaid`) — no adivina esos números, los calcula igual
+ * que la vista: status=1 → pendiente, status=2 → pagado (ver
+ * 02_CODEX_Y_SCHEMA_MAESTRO.md, mapeo verificado contra datos reales).
+ */
+function handle_payment_list_owners(): void
+{
+    Auth::requireUser();
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $where = ['deleteAt IS NULL'];
+    $params = [];
+    if (!empty($_GET['search'])) {
+        $where[] = 'name LIKE :search';
+        $params['search'] = '%' . $_GET['search'] . '%';
+    }
+
+    $pdo = Database::connection();
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM `user` WHERE ' . implode(' AND ', $where));
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $ownerStmt = $pdo->prepare(
+        'SELECT id, name, code FROM `user` WHERE ' . implode(' AND ', $where) . '
+         ORDER BY name LIMIT :limit OFFSET :offset'
+    );
+    foreach ($params as $key => $value) {
+        $ownerStmt->bindValue($key, $value);
+    }
+    $ownerStmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $ownerStmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $ownerStmt->execute();
+    $owners = $ownerStmt->fetchAll();
+
+    $ownerIds = array_column($owners, 'id');
+    $quotasByOwner = [];
+    $totalToPay = 0.0;
+    $totalPaid = 0.0;
+
+    if (!empty($ownerIds)) {
+        $inPlaceholders = implode(',', array_fill(0, count($ownerIds), '?'));
+        $qParams = $ownerIds;
+        $dateWhere = '';
+        if (!empty($_GET['initDate'])) {
+            $dateWhere .= ' AND uq.due_date >= ?';
+            $qParams[] = substr((string) $_GET['initDate'], 0, 10);
+        }
+        if (!empty($_GET['endDate'])) {
+            $dateWhere .= ' AND uq.due_date <= ?';
+            $qParams[] = substr((string) $_GET['endDate'], 0, 10);
+        }
+
+        $qStmt = $pdo->prepare(
+            "SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.user_id,
+                    p.id AS property_id, p.numOficial, s.name AS street_name
+             FROM user_quotas uq
+             LEFT JOIN property p ON p.id = uq.property_id
+             LEFT JOIN street s ON s.id = p.street_id
+             WHERE uq.user_id IN ({$inPlaceholders}){$dateWhere}
+             ORDER BY uq.due_date DESC"
+        );
+        $qStmt->execute($qParams);
+        foreach ($qStmt->fetchAll() as $q) {
+            $amount = (float) $q['amount'];
+            if ((int) $q['status'] === 2) {
+                $totalPaid += $amount;
+            } else {
+                $totalToPay += $amount;
+            }
+            $quotasByOwner[(int) $q['user_id']][] = [
+                'id' => $q['id'],
+                'status' => $q['status'],
+                'amount' => $q['amount'],
+                'dueDate' => $q['due_date'],
+                'payDate' => $q['pay_date'],
+                'property' => [
+                    'id' => $q['property_id'],
+                    'numOficial' => $q['numOficial'],
+                    'street' => ['name' => $q['street_name']],
+                    'extras' => [],
+                ],
+            ];
+        }
+    }
+
+    $items = array_map(static function (array $o) use ($quotasByOwner): array {
+        return [
+            'id' => $o['id'],
+            'name' => $o['name'],
+            'code' => $o['code'],
+            'quotas' => $quotasByOwner[(int) $o['id']] ?? [],
+        ];
+    }, $owners);
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $items,
+        'totalToPay' => round($totalToPay, 2),
+        'totalPaid' => round($totalPaid, 2),
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}

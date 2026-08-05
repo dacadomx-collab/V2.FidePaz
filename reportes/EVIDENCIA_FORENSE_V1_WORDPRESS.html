@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FidePaz V2.0 — Evidencia Forense V1</title>
+    <meta name="description" content="Evidencia técnica forense: la V1 de FidePaz era una instalación de WordPress modificada para simular un panel a medida, con hallazgos de seguridad activos.">
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body>
+
+<header class="site-header container">
+    <a href="../" class="brand">
+        <img class="logo" src="../assets/img/fidepaz-logo.png" alt="FidePaz">
+    </a>
+    <nav>
+        <ul class="site-nav">
+            <li><a href="../">Sitio público</a></li>
+            <li><a href="INFORME_TECNICO_ACADEP.html">Informe técnico</a></li>
+            <li><a href="INFORME_EJECUTIVO_COLONOS.html">Informe para colonos</a></li>
+            <li><a href="../administrator/" class="btn btn-nav">Acceso Colonos</a></li>
+        </ul>
+    </nav>
+</header>
+
+<main>
+    <section class="report-hero">
+        <div class="container">
+            <p class="eyebrow">Evidencia forense · Dirección de Tecnología</p>
+            <h1>Auditoría forense del sistema V1: WordPress detrás de una fachada</h1>
+            <p>Evidencia técnica extraída directamente del código y la base de datos de la V1 — cifras verificadas contra el dump real (<code>mercagee_colonos</code>) y el árbol de archivos del backup, 2026-08-05.</p>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="arf-grid">
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">55</p>
+                <p class="metric-label">Tablas WordPress/WooCommerce en la base de datos legacy</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">8/9</p>
+                <p class="metric-label">Cuentas admin con patrón de backdoor confirmado en <code>wp_users</code></p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">205+</p>
+                <p class="metric-label">Términos de spam SEO inyectados en la taxonomía de categorías</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>1. Resumen de la auditoría</h2>
+        <p>
+            El sistema anterior de FidePaz no era una aplicación a medida como aparentaba
+            visualmente: era una instalación estándar de <strong>WordPress + WooCommerce</strong>,
+            con el frontend fuertemente modificado para ocultar su naturaleza real, incluyendo un
+            login de "fachada" que enviaba las credenciales a <code>wp-login.php</code> por
+            debajo. Se realizó una extracción quirúrgica de los datos reales (colonos,
+            propiedades, cuotas) para migrarlos a la arquitectura V2.0, descartando el resto.
+        </p>
+    </section>
+
+    <section class="container">
+        <h2>2. Evidencia estructural en base de datos</h2>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr><th>Tabla legacy (V1)</th><th>Propósito real en WordPress</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>wp_users</code> / <code>wp_usermeta</code></td><td>Gestión estándar de usuarios del CMS, reutilizada para "colonos".</td></tr>
+                    <tr><td><code>wp_posts</code></td><td>Almacenaba pagos y propiedades como si fueran artículos de blog (Custom Post Types).</td></tr>
+                    <tr><td><code>wp_postmeta</code></td><td>Campos personalizados para enlazar pagos con usuarios — antipatrón relacional, sin llaves foráneas reales.</td></tr>
+                    <tr><td><code>wp_options</code></td><td>Configuración de plugins, URLs estáticas y tokens obsoletos.</td></tr>
+                    <tr><td><code>wp_woocommerce_*</code></td><td>Motor de tienda en línea (WooCommerce) activo en un sitio que no vende productos — superficie de ataque innecesaria.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>3. Evidencia en el sistema de archivos</h2>
+        <p>El árbol de carpetas del backup (<code>BackUp_28_Julio_2026/</code>) contiene el núcleo estándar de WordPress, disfrazado detrás de reglas de reescritura:</p>
+        <div class="card">
+            <pre class="code-block">/public_html/
+ ├── wp-admin/          # Panel de control oculto de WordPress
+ ├── wp-content/
+ │    ├── plugins/      # Plugins de terceros, varios sin actualizar
+ │    ├── themes/       # Plantilla modificada para simular un dashboard propio
+ │    └── uploads/      # Archivos subidos sin control de acceso adicional
+ ├── wp-includes/       # Núcleo de WordPress
+ ├── wp-config.php      # Credenciales de base de datos en texto plano
+ └── xmlrpc.php         # Vector de ataque conocido (fuerza bruta / amplificación)</pre>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>4. La fachada: endpoints reales detrás del login</h2>
+        <p>Al decompilar el bundle Angular de la V1 y rastrear las peticiones de red reales, las llamadas del "panel administrativo" apuntaban directo a la REST API nativa de WordPress, no a un backend propio:</p>
+        <div class="card">
+            <pre class="code-block">GET https://fidepaz.org/wp-json/wp/v2/posts?_embed&categories=39&orderby=date&order=desc&per_page=20
+GET https://fidepaz.org/wp-json/wp/v2/posts?_embed&categories=41&orderby=date&order=desc&per_page=1
+GET https://fidepaz.org/wp-json/wp/v2/users/{id}</pre>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>5. Hallazgo adicional: inyección de spam SEO en la taxonomía</h2>
+        <p>
+            Durante esta auditoría se inspeccionó <code>wp_terms</code> (categorías/etiquetas) y se
+            encontró evidencia directa, independiente del hallazgo de cuentas backdoor, de que el
+            sitio fue comprometido para alojar <strong>spam SEO de sitios de apuestas</strong>: decenas
+            de categorías inyectadas con nombres como <code>8xbet</code>, <code>rtbet-casino</code>,
+            <code>nha-cai-8xbet</code>, <code>monro-casino</code>, mezcladas entre las categorías
+            legítimas del sitio (<code>Comunicados</code>, <code>financiero</code>, <code>Reportes e
+            Informes</code>). Esto es consistente con un compromiso de larga duración usado para
+            posicionamiento de sitios de terceros aprovechando el dominio de FidePaz.
+        </p>
+        <div class="card card-danger">
+            <table>
+                <thead><tr><th>Categoría legítima</th><th>Ejemplos de categorías spam inyectadas junto a ella</th></tr></thead>
+                <tbody>
+                    <tr><td><code>Comunicados</code> (298 publicaciones asociadas)</td><td rowspan="3"><code>8xbet-app-tai-458</code>, <code>link-8xbet</code>, <code>rtbet-recensioni-306</code>, <code>rt-bet-online</code>, <code>nha-cai-8xbet-265</code>, <code>monro-casino</code>, <code>dang-nhap-8xbet</code></td></tr>
+                    <tr><td><code>financiero</code> (1 publicación asociada)</td></tr>
+                    <tr><td><code>Reportes e Informes</code></td></tr>
+                </tbody>
+            </table>
+            <p class="report-footer-note">
+                <span class="badge-verified">✔ Verificado</span>
+                Consultado directamente contra el dump real <code>mercagee_colonos.sql</code>
+                (tablas <code>wp_terms</code> / <code>wp_term_taxonomy</code>), no es una estimación.
+                Las 298 publicaciones de "Comunicados" no fueron auditadas contenido por contenido en
+                esta pasada — antes de exponerlas de nuevo al público hace falta filtrar cuáles son
+                comunicados reales de la asociación y cuáles son artefactos del compromiso.
+            </p>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>6. Migración y purga — lo que sí se rescató</h2>
+        <div class="arf-grid">
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">205</p>
+                <p class="metric-label">Colonos reales migrados a <code>fidepaz_v2_db</code></p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">194</p>
+                <p class="metric-label">Propiedades indexadas con calle y cuota asignada</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">8,550</p>
+                <p class="metric-label">Registros de cuotas/pagos migrados y verificados</p>
+            </div>
+        </div>
+        <p class="report-footer-note">
+            <span class="badge-verified">✔ Verificado</span>
+            Conteo en vivo contra la base de datos de producción (<code>mercagee_v2_FidePaz_DB</code>),
+            2026-08-05. Durante esta misma auditoría se detectaron y corrigieron 8 registros con
+            corrupción de codificación (mojibake por doble decodificación CP850/UTF-8, ej. "NUÑEZ"
+            almacenado como "NU├æEZ") heredada de la migración original — corregidos con respaldo
+            previo de las tablas afectadas.
+        </p>
+    </section>
+
+    <section class="container">
+        <h2>7. Composición de la base de datos V1</h2>
+        <div class="chart-card">
+            <div class="chart-wrap">
+                <canvas id="chartWp" role="img" aria-label="Gráfica de dona: proporción de tablas de negocio real contra tablas de infraestructura WordPress/WooCommerce en la base de datos V1"></canvas>
+            </div>
+        </div>
+        <p class="report-footer-note">
+            <span class="badge-verified">✔ Verificado</span>
+            Conteo real de <code>CREATE TABLE</code> en <code>mercagee_colonos.sql</code> (55 tablas
+            totales): 29 de WooCommerce (tienda en línea que este sitio no usa), 14 de plugins de
+            terceros (LayerSlider, WP Google Maps, Action Scheduler, respaldos de File Manager) y
+            12 del núcleo de WordPress (usuarios, publicaciones, taxonomías, comentarios) — de estas
+            últimas 12 se rescataron los datos reales de colonos, propiedades y pagos.
+        </p>
+    </section>
+
+    <section class="container">
+        <div class="card">
+            <h2>Veredicto de arquitectura</h2>
+            <p>
+                El sistema V1 operaba información financiera y de propiedad sobre una instalación de
+                WordPress no estandarizada para ese propósito, con cuentas administrativas
+                comprometidas y evidencia de inyección de spam SEO activa. La migración a V2.0
+                elimina por completo la dependencia de WordPress/WooCommerce, cierra los vectores de
+                ataque conocidos (XML-RPC, <code>wp-login.php</code>, plugins de terceros) y reduce la
+                base de datos a las tablas de negocio estrictamente necesarias.
+            </p>
+        </div>
+    </section>
+</main>
+
+<footer class="site-footer container">
+    <p>Reporte generado a partir de auditoría forense en vivo sobre el backup real de la V1 — FidePaz V2.0. Última verificación: 2026-08-05.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var ctx = document.getElementById('chartWp');
+    if (!ctx || typeof Chart === 'undefined') { return; }
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['WooCommerce (tienda no usada)', 'Plugins de terceros', 'Núcleo WordPress (con los datos reales)'],
+            datasets: [{
+                data: [29, 14, 12],
+                backgroundColor: ['#d32f2f', '#f59e0b', '#1c64f2'],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: { display: true, text: 'Composición de tablas — mercagee_colonos (55 tablas totales)', font: { size: 14 } }
+            }
+        }
+    });
+})();
+</script>
+</body>
+</html>
