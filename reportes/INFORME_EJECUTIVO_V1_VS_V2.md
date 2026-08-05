@@ -250,5 +250,8 @@ proyecto inmobiliario, respectivamente), no a FidePaz.
 | 2026-08-04 | Cuenta `admin@hotmail.com` (`super_admin`) restaurada — riesgo de password débil aceptado explícitamente por el Arquitecto | ✅ Login verificado en vivo |
 | 2026-08-04 | Redirección `301` de `administrator.fidepaz.org` (panel Angular viejo) a `v2.fidepaz.org/administrator/` | ✅ Completado y verificado |
 | 2026-08-04 | Rescate de 6 fotos reales del fraccionamiento desde el WordPress legado + galería ARF-Grid en landing | ✅ Desplegado y verificado en vivo |
+| 2026-08-05 | Fix de imágenes rotas en login (`assets/icons/logo.png`, `assets/wallpapers/login.jpg` devolvían el fallback SPA disfrazado de imagen) | ✅ Corregido y verificado (`Content-Type` correcto) |
+| 2026-08-05 | Rediseño visual del login (tarjeta con sombra/bordes suaves, animación de foco en inputs, hover atómico en botón, insignia de seguridad) vía CSS sobre el bundle ya compilado | ✅ Desplegado en producción |
+| 2026-08-05 | Verificación a nivel API de `/properties`, `/user-quotas` (paginación `limit`/`offset`) y `/users` | ✅ Datos reales, paginación correcta — **no se pudo verificar consola de navegador (F12) sin acceso a navegador real; requiere confirmación visual del Arquitecto** |
 | Pendiente | Cambiar la contraseña débil de `admin@hotmail.com` por una fuerte | ⏳ Recomendado, no bloqueante |
 | Pendiente | Retiro seguro de `mercagee_colonos` y `mercagee_colonoscore` del hosting legado | ⏳ No iniciado |
