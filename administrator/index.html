@@ -37,5 +37,30 @@
     }
   }, true);
 })();
+(function () {
+  // Fix de colapso visual del login (2026-08-05): la tarjeta de login trae
+  // una altura fija en linea (style="height:500px") horneada en el bundle
+  // compilado de Angular -- con textos mas largos, zoom del navegador o
+  // pantallas angostas, el contenido (titulo + formulario + boton) excede
+  // esos 500px y el layout "flex + items-center" centra todo el bloque
+  // dentro de una caja mas chica que su contenido, causando que
+  // "Inicio de sesion" quede encimado con "Email". No se puede sobrescribir
+  // un estilo en linea desde una hoja de estilos externa sin !important
+  // (prohibido) -- en su lugar se limpia el estilo en linea por JS en
+  // cuanto Angular renderiza la tarjeta, dejando que la regla de
+  // styles.797a1963c7237044.css (min-height + altura automatica) controle
+  // el alto real.
+  var selector = '.flex.bg-gray-200.shadow-xl.border-slate-500';
+  function limpiarAlturaFija(el) {
+    if (el && el.style && el.style.height) {
+      el.style.removeProperty('height');
+    }
+  }
+  document.querySelectorAll(selector).forEach(limpiarAlturaFija);
+  var observer = new MutationObserver(function () {
+    document.querySelectorAll(selector).forEach(limpiarAlturaFija);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
 </script>
 </body></html>

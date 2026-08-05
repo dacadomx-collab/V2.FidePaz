@@ -39,17 +39,34 @@
 </header>
 
 <main>
-    <section id="inicio" class="hero container">
-        <h1>Asociación de Colonos de FidePaz</h1>
-        <p>
-            Portal informativo del fraccionamiento. Consulta tu estado de cuenta, realiza tus
-            pagos de mantenimiento y mantente al tanto de los avisos de la asociación desde el
-            portal administrativo.
-        </p>
-        <div class="hero-actions">
-            <a href="administrator/" class="btn">Ir al Portal de Colonos</a>
-            <a href="#contacto" class="btn btn-outline">Contactar a la Administración</a>
+    <section id="inicio" class="hero-slider" aria-label="Galería de bienvenida del fraccionamiento">
+        <div class="hero-slider-track" id="hero-slider-track">
+            <figure class="hero-slide is-active">
+                <img src="assets/img/calle-medusa.jpg" alt="Calle Medusa, fraccionamiento FidePaz" loading="eager">
+            </figure>
+            <figure class="hero-slide">
+                <img src="assets/img/calle-palmeras.jpg" alt="Avenida de palmeras, fraccionamiento FidePaz" loading="lazy">
+            </figure>
+            <figure class="hero-slide">
+                <img src="assets/img/calle-cabrilla.jpg" alt="Calle Cabrilla, fraccionamiento FidePaz" loading="lazy">
+            </figure>
+            <figure class="hero-slide">
+                <img src="assets/img/calle-esquina.jpg" alt="Calle residencial, fraccionamiento FidePaz" loading="lazy">
+            </figure>
         </div>
+        <div class="hero-overlay container">
+            <h1>Asociación de Colonos de FidePaz</h1>
+            <p>
+                Portal informativo del fraccionamiento Ciudad El Recreo. Consulta tu estado de
+                cuenta, realiza tus pagos de mantenimiento y mantente al tanto de los avisos de
+                la asociación desde el portal administrativo.
+            </p>
+            <div class="hero-actions">
+                <a href="administrator/" class="btn">Ir al Portal de Colonos</a>
+                <a href="#contacto" class="btn btn-outline">Contactar a la Administración</a>
+            </div>
+        </div>
+        <div class="hero-slider-dots" id="hero-slider-dots" role="tablist" aria-label="Seleccionar imagen"></div>
     </section>
 
     <section id="nosotros" class="container">
@@ -115,46 +132,63 @@
         <div class="section-intro">
             <h2>Noticias y avisos</h2>
             <p class="text-muted">
-                Comunicados históricos de la asociación. Los documentos completos se publicarán
-                próximamente en esta sección.
+                Comunicados históricos de la asociación. Los que ya tienen documento rescatado
+                del sitio anterior se pueden abrir directamente.
             </p>
         </div>
         <div class="arf-grid">
-            <article class="card news-card arf-col-3">
+            <button type="button" class="card news-card arf-col-3" data-news="asamblea-nov-2024">
                 <p class="news-date">13 de junio, 2025</p>
                 <h3>Asamblea de asociados del 14 de noviembre del 2024</h3>
-            </article>
-            <article class="card news-card arf-col-3">
+                <p class="news-status">Documento pendiente de publicar</p>
+            </button>
+            <button type="button" class="card news-card arf-col-3" data-news="convocatoria-marzo-2025">
                 <p class="news-date">26 de marzo, 2025</p>
                 <h3>Convocatoria marzo 2025</h3>
-            </article>
-            <article class="card news-card arf-col-3">
+                <p class="news-status">Documento pendiente de publicar</p>
+            </button>
+            <button type="button" class="card news-card arf-col-3" data-news="convocatoria-segunda-asamblea">
+                <img class="news-thumb" src="assets/img/noticia-convocatoria-segunda-asamblea.jpg" alt="" loading="lazy">
                 <p class="news-date">31 de enero, 2023</p>
                 <h3>Convocatoria segunda asamblea</h3>
-            </article>
-            <article class="card news-card arf-col-3">
+                <p class="news-status">Ver documento</p>
+            </button>
+            <button type="button" class="card news-card arf-col-3" data-news="proyecto-reforma">
                 <p class="news-date">24 de enero, 2023</p>
                 <h3>Proyecto de reforma al reglamento interno FidePaz</h3>
-            </article>
-            <article class="card news-card arf-col-3">
+                <p class="news-status">Ver documento</p>
+            </button>
+            <button type="button" class="card news-card arf-col-3" data-news="cuidemos-agua">
+                <img class="news-thumb" src="assets/img/noticia-cuidemos-el-agua.jpg" alt="" loading="lazy">
                 <p class="news-date">24 de agosto, 2022</p>
                 <h3>¡Cuidemos el agua!</h3>
-            </article>
-            <article class="card news-card arf-col-3">
+                <p class="news-status">Ver aviso</p>
+            </button>
+            <button type="button" class="card news-card arf-col-3" data-news="educando-mascota">
                 <p class="news-date">8 de junio, 2022</p>
                 <h3>¡Educando a mi mascota y a mí!</h3>
-            </article>
+                <p class="news-status">Documento pendiente de publicar</p>
+            </button>
         </div>
     </section>
 
+    <div class="modal-overlay" id="news-modal" hidden>
+        <div class="modal-box card" role="dialog" aria-modal="true" aria-labelledby="news-modal-title">
+            <button type="button" class="modal-close" id="news-modal-close" aria-label="Cerrar">✕</button>
+            <p class="news-date" id="news-modal-date"></p>
+            <h3 id="news-modal-title"></h3>
+            <div id="news-modal-body"></div>
+        </div>
+    </div>
+
     <section id="reglamento" class="container">
-        <div class="card">
+        <div class="card cta-center">
             <h2>Reglamento interno</h2>
             <p>
-                El documento oficial del reglamento interno de la Asociación de Colonos de
-                FidePaz estará disponible para consulta en esta sección próximamente. Si
-                necesitas una copia mientras tanto, contáctanos a través del formulario abajo.
+                Consulta el reglamento interno de la Asociación de Colonos del Fraccionamiento
+                Ciudad El Recreo La Paz, rescatado del sitio anterior.
             </p>
+            <a href="assets/docs/reglamento-interno-fidepaz.pdf" class="btn" target="_blank" rel="noopener">Ver reglamento (PDF)</a>
         </div>
     </section>
 
@@ -238,6 +272,13 @@
                     <li><a href="mailto:hola@v2.fidepaz.org">hola@v2.fidepaz.org</a></li>
                     <li>Lunes a viernes, 8:00 AM – 3:00 PM</li>
                     <li><a href="administrator/">Acceso Colonos</a></li>
+                </ul>
+            </div>
+            <div class="arf-col-3">
+                <h3>Redes y ubicación</h3>
+                <ul class="footer-links">
+                    <li><a href="https://www.facebook.com/FraccionamientoFidepaz" target="_blank" rel="noopener">Facebook</a></li>
+                    <li><a href="https://www.google.com/maps/search/?api=1&query=La+Selva+Fidepaz%2C+La+Paz%2C+B.C.S." target="_blank" rel="noopener">Ver ubicación en Google Maps</a></li>
                 </ul>
             </div>
             <div class="arf-col-3">

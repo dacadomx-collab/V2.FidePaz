@@ -22,10 +22,164 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    initContactForm();
-    initThemeToggle();
-    initScrollTop();
+    // Cada módulo se inicializa de forma aislada: si uno falla, no debe
+    // impedir que los demás (menú, slider, modal, etc.) sigan funcionando.
+    [initContactForm, initThemeToggle, initScrollTop, initHeroSlider, initNewsModal, initSmoothNav]
+        .forEach((init) => {
+            try {
+                init();
+            } catch (err) {
+                console.error('[FidePaz] Error inicializando ' + init.name + ':', err);
+            }
+        });
 });
+
+// Hero slider: rotación automática entre las fotos reales del fraccionamiento,
+// con puntos de navegación generados dinámicamente. Pausa la rotación si el
+// visitante prefiere menos movimiento (prefers-reduced-motion).
+function initHeroSlider() {
+    const track = document.getElementById('hero-slider-track');
+    const dotsWrap = document.getElementById('hero-slider-dots');
+    if (!track || !dotsWrap) {
+        return;
+    }
+
+    const slides = Array.from(track.querySelectorAll('.hero-slide'));
+    if (slides.length < 2) {
+        return;
+    }
+
+    let current = slides.findIndex((slide) => slide.classList.contains('is-active'));
+    if (current < 0) {
+        current = 0;
+    }
+
+    const dots = slides.map((_, index) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'dot-btn' + (index === current ? ' is-active' : '');
+        dot.setAttribute('role', 'tab');
+        dot.setAttribute('aria-label', 'Ir a la imagen ' + (index + 1));
+        dot.addEventListener('click', () => goTo(index));
+        dotsWrap.appendChild(dot);
+        return dot;
+    });
+
+    function goTo(index) {
+        slides[current].classList.remove('is-active');
+        dots[current].classList.remove('is-active');
+        current = index;
+        slides[current].classList.add('is-active');
+        dots[current].classList.add('is-active');
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prefersReducedMotion) {
+        setInterval(() => {
+            goTo((current + 1) % slides.length);
+        }, 6000);
+    }
+}
+
+// Datos reales de noticias rescatadas del sitio anterior (PDFs/imagenes
+// verificados uno por uno antes de usarse -- ver bitacora del proyecto).
+// Los items sin documento/imagen confirmados muestran un aviso honesto en
+// vez de contenido inventado.
+const NEWS_CONTENT = {
+    'asamblea-nov-2024': {
+        title: 'Asamblea de asociados del 14 de noviembre del 2024',
+        date: '13 de junio, 2025',
+        html: '<p>El documento completo de esta asamblea aún no se ha rescatado del sitio anterior. Contáctanos si necesitas una copia.</p>',
+    },
+    'convocatoria-marzo-2025': {
+        title: 'Convocatoria marzo 2025',
+        date: '26 de marzo, 2025',
+        html: '<p>El documento completo de esta convocatoria aún no se ha rescatado del sitio anterior. Contáctanos si necesitas una copia.</p>',
+    },
+    'convocatoria-segunda-asamblea': {
+        title: 'Convocatoria segunda asamblea',
+        date: '31 de enero, 2023',
+        html: '<img src="assets/img/noticia-convocatoria-segunda-asamblea.jpg" alt="Convocatoria a la Segunda Asamblea General Extraordinaria de Colonos"><p><a class="btn" href="assets/docs/convocatoria-segunda-asamblea-2023.pdf" target="_blank" rel="noopener">Descargar PDF original</a></p>',
+    },
+    'proyecto-reforma': {
+        title: 'Proyecto de reforma al reglamento interno FidePaz',
+        date: '24 de enero, 2023',
+        html: '<p>Documento rescatado del sitio anterior.</p><p><a class="btn" href="assets/docs/proyecto-reforma-reglamento-interno.pdf" target="_blank" rel="noopener">Descargar PDF original</a></p>',
+    },
+    'cuidemos-agua': {
+        title: '¡Cuidemos el agua!',
+        date: '24 de agosto, 2022',
+        html: '<img src="assets/img/noticia-cuidemos-el-agua.jpg" alt=""><p>¡Todos podemos ayudar! ¡Cuidemos el agua!</p>',
+    },
+    'educando-mascota': {
+        title: '¡Educando a mi mascota y a mí!',
+        date: '8 de junio, 2022',
+        html: '<p>El documento completo de este aviso aún no se ha rescatado del sitio anterior. Contáctanos si necesitas una copia.</p>',
+    },
+};
+
+function initNewsModal() {
+    const modal = document.getElementById('news-modal');
+    const closeBtn = document.getElementById('news-modal-close');
+    const titleEl = document.getElementById('news-modal-title');
+    const dateEl = document.getElementById('news-modal-date');
+    const bodyEl = document.getElementById('news-modal-body');
+    const cards = document.querySelectorAll('[data-news]');
+    if (!modal || !cards.length) {
+        return;
+    }
+
+    function open(key) {
+        const item = NEWS_CONTENT[key];
+        if (!item) {
+            return;
+        }
+        titleEl.textContent = item.title;
+        dateEl.textContent = item.date;
+        bodyEl.innerHTML = item.html;
+        modal.hidden = false;
+        closeBtn.focus();
+    }
+
+    function close() {
+        modal.hidden = true;
+    }
+
+    cards.forEach((card) => {
+        card.addEventListener('click', () => open(card.getAttribute('data-news')));
+    });
+
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            close();
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.hidden) {
+            close();
+        }
+    });
+}
+
+// Enfoque de navegación fluido: al saltar a una sección por ancla, se
+// desplaza suavemente y se mueve el foco de teclado/lector de pantalla a esa
+// sección para un comportamiento más parecido a una SPA.
+function initSmoothNav() {
+    document.querySelectorAll('a[href^="#"]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            const id = link.getAttribute('href').slice(1);
+            const target = document.getElementById(id);
+            if (!target) {
+                return;
+            }
+            event.preventDefault();
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            target.setAttribute('tabindex', '-1');
+            target.focus({ preventScroll: true });
+        });
+    });
+}
 
 // Conmutador Día/Noche: persiste la elección explícita del visitante en
 // localStorage (data-theme en <html>), sin depender solo de
