@@ -104,6 +104,35 @@ video {
     padding: var(--space-md);
 }
 
+/* ── GALERÍA (ARF-Grid): aspect-ratio fijo por proporción, no por px, y hover
+   atómico aislado con z-index para que el zoom de una tarjeta nunca quede
+   recortado por sus vecinas en el flex-wrap ────────────────────────────── */
+.gallery-item {
+    margin: 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    aspect-ratio: 4 / 3;
+    position: relative;
+    z-index: 1;
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.gallery-item:hover,
+.gallery-item:focus-within {
+    z-index: 2;
+}
+
+.gallery-item:hover img,
+.gallery-item:focus-within img {
+    transform: scale(1.08);
+}
+
 /* ── SITIO PÚBLICO — Header, Hero, CTA, Footer (Layer 3) ──────────────────── */
 
 .site-header {
