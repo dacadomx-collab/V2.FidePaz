@@ -196,7 +196,36 @@ GET https://fidepaz.org/wp-json/wp/v2/posts?_embed&categories=42&orderby=date&or
     </section>
 
     <section class="container">
-        <h2>8. Composición de la base de datos V1</h2>
+        <h2>8. Purga completa: cero dependencias de WordPress en V2</h2>
+        <p>
+            El último punto abierto era el módulo "Comunicados" del panel administrativo, que
+            hasta el 2026-08-05 seguía llamando en tiempo de ejecución a
+            <code>https://fidepaz.org/wp-json/...</code> (ver hallazgo 4). Se reconstruyó con una
+            tabla propia (<code>announcements</code>) y endpoints nativos
+            (<code>GET/POST/PUT/DELETE /api/v2/announcements</code>,
+            <code>GET /api/v2/comunicados</code>, <code>GET /api/v2/informes</code>), y se
+            parcheó la URL hardcodeada del bundle para apuntar ahí en vez del dominio dado de baja.
+        </p>
+        <div class="card">
+            <table>
+                <thead><tr><th>Verificación</th><th>Resultado</th></tr></thead>
+                <tbody>
+                    <tr><td>Archivos <code>wp-*</code> fuera del backup histórico</td><td>0 encontrados</td></tr>
+                    <tr><td>Referencias a <code>wp-content</code>/<code>wp-admin</code>/<code>wp-login</code>/<code>xmlrpc.php</code> en código servido</td><td>0 encontradas</td></tr>
+                    <tr><td>Llamadas del bundle compilado a <code>fidepaz.org/wp-json</code></td><td>0 (todas parchadas a <code>/api/v2</code>)</td></tr>
+                </tbody>
+            </table>
+            <p class="report-footer-note">
+                <span class="badge-verified">✔ Verificado</span>
+                Escaneo real del árbol de archivos servido públicamente (excluyendo
+                <code>BackUp_28_Julio_2026/</code>, archivo histórico intencional y de solo
+                lectura) — no una afirmación sin comprobar.
+            </p>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>9. Composición de la base de datos V1</h2>
         <div class="chart-card">
             <div class="chart-wrap">
                 <canvas id="chartWp" role="img" aria-label="Gráfica de dona: proporción de tablas de negocio real contra tablas de infraestructura WordPress/WooCommerce en la base de datos V1"></canvas>

@@ -40,8 +40,8 @@
                 <p class="metric-label">Peso de base de datos (30.7 MB → 955 KB)</p>
             </div>
             <div class="card metric-card arf-col-4">
-                <p class="metric-value">-88.7%</p>
-                <p class="metric-label">Tablas en base de datos (53 → 6)</p>
+                <p class="metric-value">-89.1%</p>
+                <p class="metric-label">Tablas en base de datos (55 → 6)</p>
             </div>
             <div class="card metric-card arf-col-4">
                 <p class="metric-value">100%</p>
@@ -52,12 +52,28 @@
                 <p class="metric-label">Cuentas admin comprometidas en V1 (dadas de baja)</p>
             </div>
             <div class="card metric-card arf-col-4">
-                <p class="metric-value">202 / 194 / 8,547</p>
+                <p class="metric-value">205 / 194 / 8,550</p>
                 <p class="metric-label">Colonos / propiedades / pagos migrados y verificados</p>
             </div>
             <div class="card metric-card arf-col-4">
                 <p class="metric-value">12h</p>
                 <p class="metric-label">Expiración de token JWT HS256</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">PHP 8.2</p>
+                <p class="metric-label">Backend en producción (actualizado desde 7.4 el 2026-08-05)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">28</p>
+                <p class="metric-label">Endpoints REST activos bajo <code>/api/v2</code></p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">0</p>
+                <p class="metric-label">Dependencias nuevas para generar reportes .xlsx (usa <code>ZipArchive</code> nativo de PHP)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">8</p>
+                <p class="metric-label">Registros con corrupción UTF-8 (CP850) detectados y corregidos, con respaldo previo</p>
             </div>
         </div>
     </section>
@@ -85,7 +101,7 @@
             <div class="card arf-col-2">
                 <h3>V1 — Legacy (dada de baja)</h3>
                 <p>
-                    WordPress + WooCommerce en <code>mercagee_colonos</code> (30.7 MB, 53 tablas),
+                    WordPress + WooCommerce en <code>mercagee_colonos</code> (30.7 MB, 55 tablas),
                     con backend de autenticación en Node.js sobre Google Cloud Run. Auditoría de
                     <code>wp_users</code>: 8 de 9 cuentas administrativas con patrón de backdoor
                     confirmado. Redirigida por completo a V2.0; no se reactivó ningún componente
@@ -121,7 +137,25 @@
             </div>
             <div class="card arf-col-3">
                 <h3>Superficie expuesta</h3>
-                <p>8 endpoints explícitos bajo <code>/api/v2</code>, CORS por whitelist, rate limiting por IP en login y contacto.</p>
+                <p>28 endpoints explícitos bajo <code>/api/v2</code>, CORS por whitelist dinámica (valida cada <code>Origin</code> contra una lista configurada, nunca refleja sin validar ni usa <code>*</code>), rate limiting por IP en login y contacto.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>Hitos de infraestructura recientes (2026-08-05)</h2>
+        <div class="arf-grid">
+            <div class="card arf-col-3">
+                <h3>PHP 7.4 → 8.2</h3>
+                <p>El hosting sí soportaba 8.x (CloudLinux PHP Selector, hasta 8.5); solo nunca se había cambiado. Migrado y re-verificado sin regresión en ningún endpoint.</p>
+            </div>
+            <div class="card arf-col-3">
+                <h3>Motor .xlsx nativo</h3>
+                <p>Los reportes descargables (Pagos, Estado de propietario) generan archivos <code>.xlsx</code> reales con <code>ZipArchive</code> — extensión núcleo de PHP, sin agregar Composer ni librerías de terceros.</p>
+            </div>
+            <div class="card arf-col-3">
+                <h3>Go 1.26 + PHP fallback</h3>
+                <p>Backend Go compilado como binario único (arquitectura objetivo) y backend PHP 8.2 como fallback activo en producción — mismo contrato de API, mantenidos en paralelo mientras el hosting compartido no soporte procesos persistentes propios.</p>
             </div>
         </div>
     </section>
@@ -142,7 +176,7 @@
             labels: ['Peso de Base de Datos', 'Tablas en Base de Datos', 'Cuentas Comprometidas Cerradas'],
             datasets: [{
                 label: '% de reducción / saneamiento (verificado)',
-                data: [96.9, 88.7, 100],
+                data: [96.9, 89.1, 100],
                 backgroundColor: '#1c64f2',
                 borderRadius: 6
             }]
