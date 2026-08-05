@@ -64,3 +64,39 @@ function handle_quotas_list(): void
     // mismo bug/fix: el panel espera response.items / response.meta.total.
     Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows), 'limit' => $limit, 'offset' => $offset]]);
 }
+
+/**
+ * GET /quota?page=
+ *
+ * Endpoint REAL usado por la pantalla "Cuotas" (confirmado decompilando
+ * quotaControllerGetAll en main.<hash>.js -- llama a `${basePath}/quota`,
+ * ruta que NO existía en el router; por eso el menú "Cuotas" devolvía 404
+ * y se veía vacío pese a que /user-quotas sí respondía datos).
+ */
+function handle_quota_catalog_list(): void
+{
+    Auth::requireUser();
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $pdo = Database::connection();
+    $total = (int) $pdo->query('SELECT COUNT(*) FROM quota')->fetchColumn();
+
+    $stmt = $pdo->prepare('SELECT id, name, cost FROM quota ORDER BY id LIMIT :limit OFFSET :offset');
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $rows,
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}

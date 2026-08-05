@@ -122,10 +122,21 @@ try {
         handle_contact();
     } elseif ($method === 'GET' && $path === '/properties') {
         handle_properties_list();
+    } elseif ($method === 'GET' && $path === '/property/filter') {
+        // Ruta REAL que usa el panel Angular compilado para "Propiedades".
+        handle_properties_filter();
+    } elseif ($method === 'GET' && $path === '/property/streets') {
+        handle_property_streets();
     } elseif ($method === 'GET' && $path === '/user-quotas') {
         handle_quotas_list();
+    } elseif ($method === 'GET' && $path === '/quota') {
+        // Ruta REAL que usa el panel Angular compilado para "Cuotas".
+        handle_quota_catalog_list();
     } elseif ($method === 'GET' && $path === '/users') {
         handle_users_list();
+    } elseif ($method === 'GET' && $path === '/user/filter') {
+        // Ruta REAL que usa el panel Angular compilado para "Propietarios".
+        handle_users_filter();
     } elseif ($method === 'GET' && $path === '/catalog/streets') {
         handle_catalog('streets');
     } elseif ($method === 'GET' && $path === '/catalog/quotas') {

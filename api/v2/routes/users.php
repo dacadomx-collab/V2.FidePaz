@@ -21,6 +21,62 @@ function handle_users_list(): void
     Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows)]]);
 }
 
+/**
+ * GET /user/filter?page=&name=
+ *
+ * Endpoint REAL usado por la pantalla "Propietarios" (confirmado
+ * decompilando userService.filterOwners en main.<hash>.js -- llama a
+ * `${basePath}/user/filter`, no a `/users`). La tabla (994.<hash>.js) lee
+ * campos planos (name/email/phone/cellphone), pero SÍ exige
+ * `response.items` + `response.meta.totalPages` con paginación real.
+ */
+function handle_users_filter(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $where = ['deleteAt IS NULL'];
+    $params = [];
+    if (!empty($_GET['name'])) {
+        $where[] = 'name LIKE :name';
+        $params['name'] = '%' . $_GET['name'] . '%';
+    }
+
+    $pdo = Database::connection();
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM `user` WHERE ' . implode(' AND ', $where));
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $sql = 'SELECT id, email, name, code, phone, cellphone, role, createAt
+            FROM `user`
+            WHERE ' . implode(' AND ', $where) . '
+            ORDER BY name
+            LIMIT :limit OFFSET :offset';
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $rows,
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}
+
 /** GET /catalog/streets y /catalog/quotas — catálogos de solo lectura para llenar selects del panel. */
 function handle_catalog(string $which): void
 {
