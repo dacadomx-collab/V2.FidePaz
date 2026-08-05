@@ -59,7 +59,10 @@ function handle_quotas_list(): void
     $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
 
-    $rows = $stmt->fetchAll();
+    $rows = array_map(static function (array $r): array {
+        $r['amount'] = (float) $r['amount'];
+        return $r;
+    }, $stmt->fetchAll());
     // "items" (+ "meta") es alias de "data" -- ver nota en properties.php,
     // mismo bug/fix: el panel espera response.items / response.meta.total.
     Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows), 'limit' => $limit, 'offset' => $offset]]);
@@ -88,7 +91,10 @@ function handle_quota_catalog_list(): void
     $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
     $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
-    $rows = $stmt->fetchAll();
+    $rows = array_map(static function (array $r): array {
+        $r['cost'] = (float) $r['cost'];
+        return $r;
+    }, $stmt->fetchAll());
 
     Response::json(200, [
         'status' => 'ok',
@@ -185,7 +191,7 @@ function handle_payment_list_owners(): void
             $quotasByOwner[(int) $q['user_id']][] = [
                 'id' => $q['id'],
                 'status' => $q['status'],
-                'amount' => $q['amount'],
+                'amount' => $amount,
                 'dueDate' => $q['due_date'],
                 'payDate' => $q['pay_date'],
                 'property' => [
@@ -218,6 +224,39 @@ function handle_payment_list_owners(): void
             'page' => $page,
         ],
     ]);
+}
+
+/**
+ * GET /quota/byterm?search=
+ *
+ * Autocompletado de tipo de cuota (`quotaService.getQuotaByTerm`, usado
+ * por `ng-select` en el formulario de Propiedades). Igual que
+ * `/property/streets`: array plano en la raíz, no `{status,items,meta}`
+ * -- el bundle asigna `this.searchResultsQuota = n` directo.
+ */
+function handle_quota_byterm(): void
+{
+    Auth::requireUser();
+
+    $pdo = Database::connection();
+    if (!empty($_GET['search'])) {
+        $stmt = $pdo->prepare('SELECT id, name, cost FROM quota WHERE name LIKE :search ORDER BY name');
+        $stmt->bindValue('search', '%' . $_GET['search'] . '%');
+        $stmt->execute();
+    } else {
+        $stmt = $pdo->query('SELECT id, name, cost FROM quota ORDER BY name');
+    }
+    $rows = array_map(static function (array $r): array {
+        $r['cost'] = (float) $r['cost'];
+        return $r;
+    }, $stmt->fetchAll());
+
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode($rows, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 /**
@@ -300,7 +339,7 @@ function handle_payments_list(): void
         return [
             'id' => $r['id'],
             'status' => $r['status'],
-            'amount' => $r['amount'],
+            'amount' => (float) $r['amount'],
             'dueDate' => $r['due_date'],
             'payDate' => $r['pay_date'],
             'receipt' => $r['receipt'],

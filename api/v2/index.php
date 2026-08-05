@@ -145,6 +145,8 @@ try {
     } elseif ($method === 'GET' && $path === '/quota') {
         // Ruta REAL que usa el panel Angular compilado para "Cuotas".
         handle_quota_catalog_list();
+    } elseif ($method === 'GET' && $path === '/quota/byterm') {
+        handle_quota_byterm();
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
         // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();
@@ -158,6 +160,8 @@ try {
     } elseif ($method === 'GET' && $path === '/user/filter') {
         // Ruta REAL que usa el panel Angular compilado para "Propietarios".
         handle_users_filter();
+    } elseif ($method === 'GET' && $path === '/user/byterm') {
+        handle_user_byterm();
     } elseif ($method === 'GET' && $path === '/user') {
         // ngOnInit() de la lista de Propietarios llama a esta ruta BARE en
         // la carga inicial -- mismo handler, mismo comportamiento sin filtro.

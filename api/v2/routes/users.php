@@ -77,6 +77,37 @@ function handle_users_filter(): void
     ]);
 }
 
+/**
+ * GET /user/byterm?search=
+ *
+ * Autocompletado de propietario (`userService.getUsersByTerm`, usado por
+ * `ng-select` en el formulario de Propiedades para asignar dueño). Igual
+ * que `/property/streets` y `/quota/byterm`: array plano en la raíz.
+ */
+function handle_user_byterm(): void
+{
+    Auth::requireUser();
+
+    $pdo = Database::connection();
+    if (!empty($_GET['search'])) {
+        $stmt = $pdo->prepare(
+            'SELECT id, name, email, code FROM `user` WHERE deleteAt IS NULL AND name LIKE :search ORDER BY name'
+        );
+        $stmt->bindValue('search', '%' . $_GET['search'] . '%');
+        $stmt->execute();
+    } else {
+        $stmt = $pdo->query('SELECT id, name, email, code FROM `user` WHERE deleteAt IS NULL ORDER BY name');
+    }
+    $rows = $stmt->fetchAll();
+
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode($rows, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 /** GET /catalog/streets y /catalog/quotas — catálogos de solo lectura para llenar selects del panel. */
 function handle_catalog(string $which): void
 {

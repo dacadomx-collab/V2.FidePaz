@@ -109,7 +109,11 @@ function handle_properties_filter(): void
             $userQuotasByProperty[(int) $uq['property_id']][] = [
                 'id' => $uq['id'],
                 'status' => $uq['status'],
-                'amount' => $uq['amount'],
+                // (float): PDO/mysqlnd siempre devuelve DECIMAL como string;
+                // sin este cast, sumar client-side (`p+=Z.amount`) hace
+                // concatenación de strings en JS y revienta el pipe de
+                // moneda con NG02100.
+                'amount' => (float) $uq['amount'],
                 'dueDate' => $uq['due_date'],
                 'payDate' => $uq['pay_date'],
                 'user' => [
@@ -127,7 +131,7 @@ function handle_properties_filter(): void
             'numOficial' => $p['numOficial'],
             'dueDay' => $p['due_day'],
             'street' => ['id' => $p['street_id'], 'name' => $p['street_name']],
-            'quota' => ['id' => $p['quota_id'], 'name' => $p['quota_name'], 'cost' => $p['quota_cost']],
+            'quota' => ['id' => $p['quota_id'], 'name' => $p['quota_name'], 'cost' => $p['quota_cost'] !== null ? (float) $p['quota_cost'] : null],
             'userquotas' => $userQuotasByProperty[(int) $p['id']] ?? [],
             'extras' => [],
         ];
@@ -144,16 +148,38 @@ function handle_properties_filter(): void
     ]);
 }
 
-/** GET /property/streets — catálogo de calles para el filtro del panel. */
+/**
+ * GET /property/streets?search=
+ *
+ * Autocompletado de calles (`propertyService.getStreetNamesByTerm`,
+ * usado por el componente `ng-select` en los formularios de
+ * Propiedades/Pagos). **Forma de respuesta atípica a propósito:** array
+ * plano en la raíz, NO `{status,items,meta}` -- el bundle hace
+ * `this.searchResults = r` directo sobre la respuesta (confirmado
+ * decompilando el `.subscribe` real), y el componente `ng-select` llama
+ * `.map()` sobre eso mismo -- envolverlo en un objeto revienta con
+ * `TypeError: n.map is not a function` (visto en consola real 2026-08-05).
+ */
 function handle_property_streets(): void
 {
     Auth::requireUser();
 
     $pdo = Database::connection();
-    $stmt = $pdo->query('SELECT id, name FROM street ORDER BY name');
+    if (!empty($_GET['search'])) {
+        $stmt = $pdo->prepare('SELECT id, name FROM street WHERE name LIKE :search ORDER BY name');
+        $stmt->bindValue('search', '%' . $_GET['search'] . '%');
+        $stmt->execute();
+    } else {
+        $stmt = $pdo->query('SELECT id, name FROM street ORDER BY name');
+    }
     $rows = $stmt->fetchAll();
 
-    Response::json(200, ['status' => 'ok', 'items' => $rows, 'meta' => ['total' => count($rows)]]);
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode($rows, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 /**
