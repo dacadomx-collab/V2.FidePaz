@@ -59,5 +59,8 @@ function handle_quotas_list(): void
     $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
 
-    Response::json(200, ['status' => 'ok', 'data' => $stmt->fetchAll()]);
+    $rows = $stmt->fetchAll();
+    // "items" (+ "meta") es alias de "data" -- ver nota en properties.php,
+    // mismo bug/fix: el panel espera response.items / response.meta.total.
+    Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows), 'limit' => $limit, 'offset' => $offset]]);
 }

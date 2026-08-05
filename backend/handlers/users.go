@@ -43,7 +43,7 @@ func ListUsers(c *gin.Context) {
 		data = append(data, u)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "data": data})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "data": data, "items": data, "meta": gin.H{"total": len(data)}})
 }
 
 // Catalog — GET /api/v2/catalog/:which (which = "streets" | "quotas")
@@ -97,5 +97,5 @@ func Catalog(c *gin.Context) {
 		data = append(data, row)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "data": data})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "data": data, "items": data, "meta": gin.H{"total": len(data)}})
 }

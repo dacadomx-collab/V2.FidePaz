@@ -16,5 +16,11 @@ function handle_properties_list(): void
          ORDER BY s.name, p.numOficial'
     );
 
-    Response::json(200, ['status' => 'ok', 'data' => $stmt->fetchAll()]);
+    $rows = $stmt->fetchAll();
+    // "items" (+ "meta") es alias de "data": el panel Angular ya compilado
+    // lee response.items / response.meta.total en su lista de propiedades
+    // (ver listProperties = r.items en el bundle) -- sin este alias la
+    // sección quedaba vacía aunque la API sí traía datos reales. Se
+    // conserva "data" por compatibilidad con otros consumidores/pruebas.
+    Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows)]]);
 }

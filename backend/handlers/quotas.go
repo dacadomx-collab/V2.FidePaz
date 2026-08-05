@@ -98,7 +98,7 @@ func ListUserQuotas(c *gin.Context) {
 		data = append(data, q)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "data": data})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "data": data, "items": data, "meta": gin.H{"total": len(data)}})
 }
 
 func clampInt(raw string, def, min, max int) int {

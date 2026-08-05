@@ -15,7 +15,10 @@ function handle_users_list(): void
          ORDER BY name'
     );
 
-    Response::json(200, ['status' => 'ok', 'data' => $stmt->fetchAll()]);
+    $rows = $stmt->fetchAll();
+    // "items" (+ "meta") es alias de "data" -- ver nota en properties.php,
+    // mismo bug/fix: el panel espera response.items / response.meta.total.
+    Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows)]]);
 }
 
 /** GET /catalog/streets y /catalog/quotas — catálogos de solo lectura para llenar selects del panel. */
@@ -40,5 +43,8 @@ function handle_catalog(string $which): void
 
     $pdo = Database::connection();
     $stmt = $pdo->query("SELECT * FROM `{$table}` ORDER BY id");
-    Response::json(200, ['status' => 'ok', 'data' => $stmt->fetchAll()]);
+    $rows = $stmt->fetchAll();
+    // Mismo alias preventivo que en el resto de rutas de lista (ver nota en
+    // properties.php) -- no confirmado como roto, pero mismo patrón de riesgo.
+    Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows)]]);
 }
