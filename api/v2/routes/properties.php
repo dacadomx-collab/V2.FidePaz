@@ -155,3 +155,23 @@ function handle_property_streets(): void
 
     Response::json(200, ['status' => 'ok', 'items' => $rows, 'meta' => ['total' => count($rows)]]);
 }
+
+/**
+ * GET /property/extras/all — catálogo de "costos extra" por propiedad.
+ *
+ * La tabla `extras` está fuera de alcance de v2.0 (decisión ya documentada
+ * en db/schema.sql: "Se excluye la tabla extras"). Se responde vacío en
+ * lugar de 404 porque el bundle compilado hace
+ * `for(...;i<=meta.totalPages;...)` sobre la respuesta sin comprobar si
+ * existe -- un 404 (sin `meta`) revienta esa pantalla con un TypeError.
+ */
+function handle_extras_all(): void
+{
+    Auth::requireUser();
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => [],
+        'meta' => ['total' => 0, 'totalPages' => 0, 'page' => 1],
+    ]);
+}

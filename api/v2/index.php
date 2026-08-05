@@ -89,6 +89,7 @@ try {
     require __DIR__ . '/routes/quotas.php';
     require __DIR__ . '/routes/users.php';
     require __DIR__ . '/routes/contact.php';
+    require __DIR__ . '/routes/announcements.php';
 } catch (\Throwable $e) {
     error_log('[fidepaz_v2] Fallo cargando módulos internos: ' . $e->getMessage());
     fidepaz_json_fail(500, 'Error interno del servidor (carga de módulos)', $e);
@@ -125,21 +126,47 @@ try {
     } elseif ($method === 'GET' && $path === '/property/filter') {
         // Ruta REAL que usa el panel Angular compilado para "Propiedades".
         handle_properties_filter();
+    } elseif ($method === 'GET' && $path === '/property') {
+        // ngOnInit() de la lista de Propiedades llama a esta ruta BARE (sin
+        // filtro) en la carga inicial -- filter() solo se usa al buscar.
+        // Mismo handler: sin $_GET['name']/$_GET['streets'] se comporta
+        // igual que un listado sin filtro.
+        handle_properties_filter();
     } elseif ($method === 'GET' && $path === '/property/streets') {
         handle_property_streets();
+    } elseif ($method === 'GET' && $path === '/property/extras/all') {
+        // La tabla `extras` está fuera de alcance de v2.0 (ver
+        // 02_CODEX_Y_SCHEMA_MAESTRO.md) -- se responde vacío mas con la
+        // forma exacta que exige el bundle (meta.totalPages), para no
+        // provocar un TypeError al iterar sobre "meta.totalPages" undefined.
+        handle_extras_all();
     } elseif ($method === 'GET' && $path === '/user-quotas') {
         handle_quotas_list();
     } elseif ($method === 'GET' && $path === '/quota') {
         // Ruta REAL que usa el panel Angular compilado para "Cuotas".
         handle_quota_catalog_list();
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
-        // Ruta REAL que usa la pantalla "Pagos".
+        // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();
+    } elseif ($method === 'GET' && $path === '/payment') {
+        // Ruta REAL que usa la pantalla "Pagos" (app-list-payments, chunk
+        // 104) -- lista plana de pagos individuales, distinta de
+        // /payment/list-owners (que agrupa por propietario).
+        handle_payments_list();
     } elseif ($method === 'GET' && $path === '/users') {
         handle_users_list();
     } elseif ($method === 'GET' && $path === '/user/filter') {
         // Ruta REAL que usa el panel Angular compilado para "Propietarios".
         handle_users_filter();
+    } elseif ($method === 'GET' && $path === '/user') {
+        // ngOnInit() de la lista de Propietarios llama a esta ruta BARE en
+        // la carga inicial -- mismo handler, mismo comportamiento sin filtro.
+        handle_users_filter();
+    } elseif ($method === 'GET' && $path === '/posts') {
+        // Reemplazo real del wp-json muerto para la pantalla "Comunicados".
+        handle_posts_list();
+    } elseif ($method === 'POST' && $path === '/announcements') {
+        handle_announcements_create();
     } elseif ($method === 'GET' && $path === '/catalog/streets') {
         handle_catalog('streets');
     } elseif ($method === 'GET' && $path === '/catalog/quotas') {

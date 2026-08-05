@@ -219,3 +219,107 @@ function handle_payment_list_owners(): void
         ],
     ]);
 }
+
+/**
+ * GET /payment?page=&status=&streets[]=&initDate=&endDate=&code=
+ *
+ * Ruta REAL de la pantalla "Pagos" (app-list-payments, chunk 104 del
+ * bundle compilado -- confirmado por `paymentService.getAllPayments()` en
+ * `ngOnInit()`, llamada en la carga inicial de la página, distinta de
+ * `/payment/list-owners` que agrupa por propietario). Lista plana de pagos
+ * individuales (una fila = un `user_quotas`).
+ */
+function handle_payments_list(): void
+{
+    Auth::requireUser();
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $where = ['1=1'];
+    $params = [];
+
+    if (!empty($_GET['status'])) {
+        $where[] = 'uq.status = :status';
+        $params['status'] = (int) $_GET['status'];
+    }
+    if (!empty($_GET['initDate'])) {
+        $where[] = 'uq.due_date >= :initDate';
+        $params['initDate'] = substr((string) $_GET['initDate'], 0, 10);
+    }
+    if (!empty($_GET['endDate'])) {
+        $where[] = 'uq.due_date <= :endDate';
+        $params['endDate'] = substr((string) $_GET['endDate'], 0, 10);
+    }
+    if (!empty($_GET['code'])) {
+        $where[] = 'u.code LIKE :code';
+        $params['code'] = '%' . $_GET['code'] . '%';
+    }
+    if (!empty($_GET['streets']) && is_array($_GET['streets'])) {
+        $ids = array_map('intval', $_GET['streets']);
+        $placeholders = [];
+        foreach ($ids as $i => $id) {
+            $key = "street_{$i}";
+            $placeholders[] = ":{$key}";
+            $params[$key] = $id;
+        }
+        $where[] = 'p.street_id IN (' . implode(',', $placeholders) . ')';
+    }
+
+    $pdo = Database::connection();
+
+    $countStmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM user_quotas uq
+         LEFT JOIN `user` u ON u.id = uq.user_id
+         LEFT JOIN property p ON p.id = uq.property_id
+         WHERE ' . implode(' AND ', $where)
+    );
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $sql = 'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt,
+                   u.id AS user_id, u.name AS user_name, u.code AS user_code,
+                   p.id AS property_id, p.numOficial, s.name AS street_name
+            FROM user_quotas uq
+            LEFT JOIN `user` u ON u.id = uq.user_id
+            LEFT JOIN property p ON p.id = uq.property_id
+            LEFT JOIN street s ON s.id = p.street_id
+            WHERE ' . implode(' AND ', $where) . '
+            ORDER BY uq.due_date DESC
+            LIMIT :limit OFFSET :offset';
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $items = array_map(static function (array $r): array {
+        return [
+            'id' => $r['id'],
+            'status' => $r['status'],
+            'amount' => $r['amount'],
+            'dueDate' => $r['due_date'],
+            'payDate' => $r['pay_date'],
+            'receipt' => $r['receipt'],
+            'user' => ['id' => $r['user_id'], 'name' => $r['user_name'], 'code' => $r['user_code']],
+            'property' => [
+                'id' => $r['property_id'],
+                'numOficial' => $r['numOficial'],
+                'street' => ['name' => $r['street_name']],
+            ],
+        ];
+    }, $stmt->fetchAll());
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $items,
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}
