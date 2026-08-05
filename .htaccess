@@ -92,7 +92,7 @@ ServerSignature Off
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
 
     # Content Security Policy — ajustar según CDNs y APIs externas del proyecto
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'self';"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https:; frame-ancestors 'self';"
 
     # Ocultar firma del servidor
     Header always unset X-Powered-By

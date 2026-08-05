@@ -36,6 +36,12 @@ function handle_auth_login(): void
     Response::json(200, [
         'status' => 'ok',
         'token'  => $token,
+        // accessToken es un alias del mismo valor de "token": el panel Angular
+        // ya compilado (administrator/) lee especificamente response.accessToken
+        // en su AuthService -- ver login() en el chunk 248 del bundle. Sin este
+        // alias, el login HTTP 200 si ocurre pero el SPA guarda un token vacio y
+        // nunca redirige al dashboard. Se conserva "token" por compatibilidad.
+        'accessToken' => $token,
         'user'   => [
             'id'    => (int) $user['id'],
             'email' => $user['email'],

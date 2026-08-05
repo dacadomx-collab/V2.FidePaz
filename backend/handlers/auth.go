@@ -68,6 +68,13 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
 		"token":  token,
+		// accessToken es un alias del mismo valor de "token": el panel Angular
+		// ya compilado (administrator/) lee específicamente `response.accessToken`
+		// en su AuthService -- ver login() en el chunk 248 del bundle. Sin este
+		// alias, el login HTTP 200 sí ocurre pero el SPA guarda un token vacío y
+		// nunca redirige al dashboard. Se conserva "token" por compatibilidad con
+		// el resto de la documentación/contratos del proyecto.
+		"accessToken": token,
 		"user": gin.H{
 			"id":    id,
 			"email": email,
