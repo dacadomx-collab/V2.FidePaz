@@ -9,5 +9,16 @@
 <body>
   <app-root></app-root>
 <script src="runtime.aac71ca4f4190534.js" type="module"></script><script src="polyfills.b8f87d09a688ccd9.js" type="module"></script><script src="main.a7b24cbc3ace442e.js" type="module"></script>
-
+<script>
+(function () {
+  // Fix de autofill (2026-08-05): ver comentario en styles.797a1963c7237044.css.
+  // Solo despacha un evento 'input' nativo cuando el navegador autocompleta
+  // un campo -- nunca modifica valores ni toca el bundle de Angular.
+  document.addEventListener('animationstart', function (e) {
+    if (e.animationName === 'onAutoFillStart') {
+      e.target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, true);
+})();
+</script>
 </body></html>

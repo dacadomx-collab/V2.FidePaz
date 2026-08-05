@@ -21,7 +21,13 @@
 	
 	# RewriteCond %{HTTPS} !on
   	# RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}
+    # Excluye localhost/127.0.0.1 (mismo criterio que el .htaccess raíz):
+    # sin esta exclusión, XAMPP local (sin certificado SSL configurado)
+    # redirige a https://localhost/... y la conexión falla -- eso es lo
+    # que se percibía como "404" al probar /administrator/ en local
+    # (2026-08-05).
     RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 	# ---------------------------------------------------------------

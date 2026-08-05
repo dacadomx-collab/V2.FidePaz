@@ -50,3 +50,22 @@ input[formcontrolname="password"]:focus {
     color: #6b7280;
     letter-spacing: .01em;
 }
+
+/* ===== Fix de deteccion de autofill del navegador (2026-08-05) =====
+   Angular Reactive Forms no detecta el autocompletado nativo del navegador
+   (Chrome/Edge/Safari) porque este no dispara el evento 'input' que Angular
+   escucha -- el campo se ve lleno pero el FormControl sigue vacio, el
+   formulario permanece invalido y el boton de login queda deshabilitado
+   permanentemente ("no hace nada al dar clic"). Tecnica estandar: detectar
+   la animacion CSS que el navegador SI dispara sobre :-webkit-autofill y
+   usarla como senal para forzar un evento 'input' real (ver script en
+   index.html). No modifica el bundle de Angular ni cambia valores. */
+@keyframes onAutoFillStart {
+    from { opacity: 1; }
+    to { opacity: 1; }
+}
+
+input:-webkit-autofill {
+    animation-name: onAutoFillStart;
+    animation-duration: .01s;
+}
