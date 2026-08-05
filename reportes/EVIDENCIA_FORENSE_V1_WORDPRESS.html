@@ -97,17 +97,48 @@
     </section>
 
     <section class="container">
-        <h2>4. La fachada: endpoints reales detrás del login</h2>
-        <p>Al decompilar el bundle Angular de la V1 y rastrear las peticiones de red reales, las llamadas del "panel administrativo" apuntaban directo a la REST API nativa de WordPress, no a un backend propio:</p>
+        <h2>4. La fachada: el módulo de Comunicados dependía de WordPress</h2>
+        <p>Al decompilar el bundle Angular del panel administrativo y rastrear las peticiones de
+        red reales, el módulo "Comunicados" del panel — técnicamente un frontend Angular aparte,
+        no WordPress — llamaba en tiempo de ejecución directo a la REST API nativa de WordPress
+        del sitio público, en vez de a un backend propio:</p>
         <div class="card">
             <pre class="code-block">GET https://fidepaz.org/wp-json/wp/v2/posts?_embed&categories=39&orderby=date&order=desc&per_page=20
 GET https://fidepaz.org/wp-json/wp/v2/posts?_embed&categories=41&orderby=date&order=desc&per_page=1
-GET https://fidepaz.org/wp-json/wp/v2/users/{id}</pre>
+GET https://fidepaz.org/wp-json/wp/v2/posts?_embed&categories=42&orderby=date&order=desc&per_page=20</pre>
         </div>
     </section>
 
     <section class="container">
-        <h2>5. Hallazgo adicional: inyección de spam SEO en la taxonomía</h2>
+        <h2>5. El engaño del login de fachada: "Mi Cuenta" era WooCommerce</h2>
+        <p>
+            El panel administrativo (Angular) sí tenía su propio backend de autenticación —no era
+            WordPress. Pero el <strong>portal público de colonos</strong> (la superficie que la
+            comunidad veía como "su sitio") corría sobre el tema <code>enfold</code> de WordPress
+            (confirmado en <code>wp_options</code>: <code>template</code> y <code>stylesheet</code>
+            = <code>enfold</code>) con una página publicada en <code>/my-account</code> que usaba
+            el shortcode nativo <code>[woocommerce_my_account]</code> de WooCommerce.
+        </p>
+        <div class="card card-danger">
+            <pre class="code-block">-- wp_posts: página real "My Account" del sitio, publicada
+(343, ..., '[woocommerce_my_account]', 'My Account', ..., 'publish', ..., 'my-account', ...)
+
+-- wp_options: tema activo confirmado
+('template', 'enfold')
+('stylesheet', 'enfold')</pre>
+            <p class="report-footer-note">
+                <span class="badge-verified">✔ Verificado</span>
+                El tema Enfold permite maquetar esa página con la identidad visual del
+                fraccionamiento, pero el formulario de acceso que renderiza el shortcode
+                <code>[woocommerce_my_account]</code> es 100% nativo de WooCommerce/WordPress por
+                debajo — misma capa de autenticación que cualquier tienda WooCommerce sin
+                personalizar, no un sistema propio del fraccionamiento como aparentaba visualmente.
+            </p>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>6. Hallazgo adicional: inyección de spam SEO en la taxonomía</h2>
         <p>
             Durante esta auditoría se inspeccionó <code>wp_terms</code> (categorías/etiquetas) y se
             encontró evidencia directa, independiente del hallazgo de cuentas backdoor, de que el
@@ -139,7 +170,7 @@ GET https://fidepaz.org/wp-json/wp/v2/users/{id}</pre>
     </section>
 
     <section class="container">
-        <h2>6. Migración y purga — lo que sí se rescató</h2>
+        <h2>7. Migración y purga — lo que sí se rescató</h2>
         <div class="arf-grid">
             <div class="card metric-card arf-col-4">
                 <p class="metric-value">205</p>
@@ -165,7 +196,7 @@ GET https://fidepaz.org/wp-json/wp/v2/users/{id}</pre>
     </section>
 
     <section class="container">
-        <h2>7. Composición de la base de datos V1</h2>
+        <h2>8. Composición de la base de datos V1</h2>
         <div class="chart-card">
             <div class="chart-wrap">
                 <canvas id="chartWp" role="img" aria-label="Gráfica de dona: proporción de tablas de negocio real contra tablas de infraestructura WordPress/WooCommerce en la base de datos V1"></canvas>
