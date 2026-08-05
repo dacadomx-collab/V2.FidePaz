@@ -23,7 +23,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initContactForm();
+    initThemeToggle();
+    initScrollTop();
 });
+
+// Conmutador Día/Noche: persiste la elección explícita del visitante en
+// localStorage (data-theme en <html>), sin depender solo de
+// prefers-color-scheme del sistema operativo.
+function initThemeToggle() {
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) {
+        return;
+    }
+
+    const root = document.documentElement;
+    const STORAGE_KEY = 'fidepaz-theme';
+    const systemPrefersDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    const applyTheme = (theme) => {
+        root.setAttribute('data-theme', theme);
+        btn.setAttribute('aria-pressed', String(theme === 'dark'));
+        btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+    };
+
+    const stored = localStorage.getItem(STORAGE_KEY);
+    applyTheme(stored || (systemPrefersDark() ? 'dark' : 'light'));
+
+    btn.addEventListener('click', () => {
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(STORAGE_KEY, next);
+        applyTheme(next);
+    });
+}
+
+// Botón flotante "ir arriba": aparece tras 300px de scroll, desplazamiento suave.
+function initScrollTop() {
+    const btn = document.getElementById('scroll-top-btn');
+    if (!btn) {
+        return;
+    }
+
+    const toggleVisibility = () => {
+        btn.classList.toggle('is-visible', window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', toggleVisibility, { passive: true });
+    toggleVisibility();
+
+    btn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+}
 
 // Elimina cualquier marcado HTML del input antes de usarlo (anti-XSS defensa en
 // profundidad; el backend, si llega a existir, debe sanitizar/escapar de nuevo).

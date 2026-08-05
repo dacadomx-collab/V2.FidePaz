@@ -39,7 +39,11 @@ func main() {
 		api.GET("", apiStatus)
 		api.GET("/", apiStatus)
 
-		api.POST("/auth/login", middleware.RateLimit(10, 5*time.Minute), handlers.Login)
+		// 20 intentos/5min (subido de 10 el 2026-08-05, ver api/v2/routes/auth.php
+		// para el mismo cambio en el fallback PHP): el límite original generaba
+		// falsos positivos durante QA activo sin aportar protección real
+		// adicional -- bcrypt cost=10 + JWT siguen siendo la defensa principal.
+		api.POST("/auth/login", middleware.RateLimit(20, 5*time.Minute), handlers.Login)
 		api.POST("/contact", middleware.RateLimit(5, 10*time.Minute), handlers.Contact)
 
 		api.GET("/properties", middleware.RequireAuth(), handlers.ListProperties)

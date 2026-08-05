@@ -41,6 +41,32 @@
     }
 }
 
+/* ── Conmutador Día/Noche manual: sobrescribe la preferencia del sistema
+   operativo cuando el visitante elige explícitamente un tema (persistido en
+   localStorage por assets/js/main.js). Misma paleta institucional que el
+   bloque prefers-color-scheme de arriba, solo forzada por atributo. ────── */
+:root[data-theme="dark"] {
+    --color-bg: #0b1120;
+    --color-bg-alt: #111827;
+    --color-text: #f1f5f9;
+    --color-text-muted: #9ca3af;
+    --color-primary: #3f83f8;
+    --color-primary-dark: #1c64f2;
+    --color-primary-soft: #16213b;
+    --color-border: #1e293b;
+}
+
+:root[data-theme="light"] {
+    --color-bg: #ffffff;
+    --color-bg-alt: #f9f9f9;
+    --color-text: #1f2937;
+    --color-text-muted: #6b7280;
+    --color-primary: #1c64f2;
+    --color-primary-dark: #174baa;
+    --color-primary-soft: #ebf5ff;
+    --color-border: #e5e7eb;
+}
+
 * {
     box-sizing: border-box;
 }
@@ -175,6 +201,12 @@ video {
 .site-nav a:hover,
 .site-nav a:focus-visible {
     color: var(--color-primary);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
 }
 
 .nav-toggle {
@@ -334,4 +366,62 @@ video {
     color: var(--color-text-muted);
     font-size: 0.9rem;
     text-align: center;
+}
+
+/* ── CONMUTADOR DE TEMA (Día/Noche) ────────────────────────────────────── */
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+    border-color: var(--color-primary);
+}
+
+/* ── BOTÓN "IR ARRIBA" (Scroll-to-Top) ─────────────────────────────────── */
+.scroll-top-btn {
+    position: fixed;
+    right: var(--space-md);
+    bottom: var(--space-md);
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-primary);
+    color: #ffffff;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 10px 20px -8px rgba(15, 23, 42, 0.35);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(0.5rem);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease, background-color 0.2s ease;
+}
+
+.scroll-top-btn.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.scroll-top-btn:hover,
+.scroll-top-btn:focus-visible {
+    background-color: var(--color-primary-dark);
 }

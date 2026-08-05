@@ -15,9 +15,15 @@
         <img class="logo" src="assets/img/fidepaz-logo.png" alt="FidePaz">
     </a>
 
-    <button id="nav-toggle" class="nav-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-nav">
-        ☰
-    </button>
+    <div class="header-actions">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Cambiar a modo oscuro" aria-pressed="false">
+            🌙
+        </button>
+
+        <button id="nav-toggle" class="nav-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-nav">
+            ☰
+        </button>
+    </div>
 
     <nav>
         <ul id="site-nav" class="site-nav">
@@ -140,6 +146,10 @@
 <footer class="site-footer container">
     <p>&copy; <span id="current-year">2026</span> Asociación de Colonos de FidePaz. Todos los derechos reservados.</p>
 </footer>
+
+<button id="scroll-top-btn" class="scroll-top-btn" type="button" aria-label="Ir arriba">
+    ↑
+</button>
 
 <script src="assets/js/main.js"></script>
 </body>

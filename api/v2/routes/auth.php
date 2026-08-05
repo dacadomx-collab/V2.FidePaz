@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** POST /auth/login  { "email": "...", "password": "..." } */
 function handle_auth_login(): void
 {
-    RateLimit::check('login', 10, 300); // máx 10 intentos / 5 min / IP
+    RateLimit::check('login', 20, 300); // máx 20 intentos / 5 min / IP (subido de 10 el 2026-08-05: el límite original generaba falsos positivos durante QA activo sin aportar protección real adicional contra fuerza bruta -- bcrypt cost=10 + JWT siguen siendo la defensa principal)
 
     $body = json_decode(file_get_contents('php://input'), true);
     $email = trim((string) ($body['email'] ?? ''));
