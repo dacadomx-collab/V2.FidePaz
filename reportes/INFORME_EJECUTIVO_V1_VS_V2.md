@@ -259,5 +259,6 @@ proyecto inmobiliario, respectivamente), no a FidePaz.
 
 **Nota sobre el mandato de "verificación pre-push obligatoria":** todo lo del 2026-08-05 se probó localmente antes de comitear (lint PHP, `go build`/`go vet`, sintaxis JS con `node -c`, servidor local con PHP built-in, verificación de cero inline-styles/cero `!important` real) — el único punto que sigue sin poder verificarse al 100% es la consola del navegador (F12) en vivo, porque este entorno no tiene navegador real disponible.
 
+| 2026-08-05 | Auditoría de reporte "login no funciona" — falsa alarma | ✅ Verificado sin tocar nada: `.env` (`api/v2/` y `backend/`) ya existía y apuntaba correctamente a `mercagee_v2_FidePaz_DB`. **No** se recreó con `mercagee_colonoscore` (la BD vieja pre-migración) como sugería el reporte inicial — hacerlo habría desconectado la API de los datos reales. Las 3 cuentas de prueba responden `200 OK` + JWT sin ningún cambio de código. |
 | Pendiente | Cambiar la contraseña débil de `admin@hotmail.com` por una fuerte | ⏳ Recomendado, no bloqueante |
 | Pendiente | Retiro seguro de `mercagee_colonos` y `mercagee_colonoscore` del hosting legado | ⏳ No iniciado |
