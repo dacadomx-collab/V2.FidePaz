@@ -425,3 +425,203 @@ video {
 .scroll-top-btn:focus-visible {
     background-color: var(--color-primary-dark);
 }
+
+/* =============================================================================
+   REPORTES HTML (reportes/*.html) — infografias institucionales
+   Reutiliza las mismas variables/paleta de arriba, ARF-Grid para las tarjetas
+   de metricas y modulos repetitivos. Cero estilos inline, cero !important.
+   ============================================================================= */
+
+.report-hero {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: #ffffff;
+    padding-block: var(--space-lg);
+    text-align: center;
+}
+
+.report-hero .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.8rem;
+    opacity: 0.85;
+    margin: 0 0 var(--space-xs);
+}
+
+.report-hero h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    margin: 0 0 var(--space-sm);
+}
+
+.report-hero p {
+    max-width: 65ch;
+    margin-inline: auto;
+    opacity: 0.92;
+}
+
+.report-nav {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    padding-block: var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.metric-card {
+    text-align: center;
+}
+
+.metric-card .metric-value {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 800;
+    color: var(--color-primary);
+    line-height: 1.1;
+    margin: 0;
+}
+
+.metric-card .metric-label {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    margin-top: var(--space-xs);
+}
+
+.chart-card {
+    background-color: var(--color-bg-alt);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-md);
+}
+
+.chart-card .chart-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 420px;
+}
+
+.badge-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.report-footer-note {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding-block: var(--space-md);
+    border-top: 1px solid var(--color-border);
+}
+
+.cta-center {
+    text-align: center;
+}
+
+/* =============================================================================
+   NOSOTROS / NOTICIAS / REGLAMENTO / FOOTER V2 (2026-08-05)
+   ============================================================================= */
+
+.section-intro {
+    text-align: center;
+    margin-bottom: var(--space-sm);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+
+.tagline {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.board-card {
+    text-align: center;
+}
+
+.board-role {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.8rem;
+    color: var(--color-primary);
+    font-weight: 700;
+    margin: 0 0 var(--space-xs);
+}
+
+.board-name {
+    font-weight: 600;
+    margin: 0;
+}
+
+.news-card .news-date {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 var(--space-xs);
+}
+
+.news-card h3 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+/* ── FOOTER V2: institucional, ARF-Grid, accesos rápidos + contacto + legal ── */
+.site-footer-v2 {
+    border-top: 1px solid var(--color-border);
+    background-color: var(--color-bg-alt);
+    margin-top: var(--space-lg);
+}
+
+.footer-grid {
+    text-align: left;
+    align-items: start;
+}
+
+.footer-grid .logo {
+    height: 2rem;
+    width: auto;
+    margin-bottom: var(--space-xs);
+}
+
+.footer-grid h3 {
+    font-size: 0.95rem;
+    margin: 0 0 var(--space-xs);
+}
+
+.footer-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.footer-links a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.footer-links a:hover,
+.footer-links a:focus-visible {
+    color: var(--color-primary);
+}
+
+.footer-legal {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.footer-bottom {
+    border-top: 1px solid var(--color-border);
+    padding-block: var(--space-sm);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}

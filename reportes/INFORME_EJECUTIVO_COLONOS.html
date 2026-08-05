@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FidePaz V2.0 — Informe para Colonos</title>
+    <meta name="description" content="Resumen para la comunidad de colonos de FidePaz sobre la modernización del portal administrativo y la migración de datos.">
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body>
+
+<header class="site-header container">
+    <a href="../" class="brand">
+        <img class="logo" src="../assets/img/fidepaz-logo.png" alt="FidePaz">
+    </a>
+    <nav>
+        <ul class="site-nav">
+            <li><a href="../">Sitio público</a></li>
+            <li><a href="INFORME_TECNICO_ACADEP.html">Informe técnico</a></li>
+            <li><a href="../administrator/" class="btn btn-nav">Acceso Colonos</a></li>
+        </ul>
+    </nav>
+</header>
+
+<main>
+    <section class="report-hero">
+        <div class="container">
+            <p class="eyebrow">Comunicado a la comunidad · Asociación de Colonos FidePaz</p>
+            <h1>Tu portal de cuotas y pagos ya está renovado</h1>
+            <p>
+                Migramos tu información a una plataforma más segura, rápida de navegar y pensada
+                para que consultes tu estado de cuenta desde cualquier dispositivo.
+            </p>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="arf-grid">
+            <div class="card metric-card arf-col-3">
+                <p class="metric-value">202</p>
+                <p class="metric-label">Colonos con su información migrada</p>
+            </div>
+            <div class="card metric-card arf-col-3">
+                <p class="metric-value">194</p>
+                <p class="metric-label">Propiedades registradas</p>
+            </div>
+            <div class="card metric-card arf-col-3">
+                <p class="metric-value">8,547</p>
+                <p class="metric-label">Pagos de mantenimiento preservados en tu historial</p>
+            </div>
+        </div>
+        <p class="report-footer-note">
+            <span class="badge-verified">✔ Verificado</span>
+            Cifras confirmadas contra la base de datos real, 2026-08-05 — nadie perdió su
+            historial de pagos en la migración.
+        </p>
+    </section>
+
+    <section class="container">
+        <h2>¿Qué cambió para ti?</h2>
+        <div class="arf-grid">
+            <div class="card arf-col-2">
+                <h3>🌗 Modo día/noche</h3>
+                <p>El portal se adapta a tu preferencia visual y la recuerda en tus próximas visitas.</p>
+            </div>
+            <div class="card arf-col-2">
+                <h3>📱 100% responsivo</h3>
+                <p>Consulta tu estado de cuenta igual de bien desde el celular, tablet o computadora.</p>
+            </div>
+            <div class="card arf-col-2">
+                <h3>🔐 Acceso más seguro</h3>
+                <p>Tu contraseña nunca se guarda en texto plano y tu sesión expira automáticamente por seguridad.</p>
+            </div>
+            <div class="card arf-col-2">
+                <h3>🖼️ Nuevo diseño</h3>
+                <p>Interfaz renovada, con las fotos reales de nuestras calles y áreas comunes.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>Panorama general de la migración</h2>
+        <div class="chart-card">
+            <div class="chart-wrap">
+                <canvas id="chartMigracion" role="img" aria-label="Gráfica de dona: distribución de colonos, propiedades y pagos migrados"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="card cta-center">
+            <h2>Consulta tu estado de cuenta</h2>
+            <p>Entra al portal con tu correo registrado para ver tus cuotas, pagos y avisos.</p>
+            <a href="../administrator/" class="btn">Ir al Portal de Colonos</a>
+        </div>
+    </section>
+</main>
+
+<footer class="site-footer container">
+    <p>Asociación de Colonos de FidePaz A.C. — comunicado técnico, 2026-08-05.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var ctx = document.getElementById('chartMigracion');
+    if (!ctx || typeof Chart === 'undefined') { return; }
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Colonos', 'Propiedades', 'Pagos registrados (÷50)'],
+            datasets: [{
+                data: [202, 194, Math.round(8547 / 50)],
+                backgroundColor: ['#1c64f2', '#3f83f8', '#174baa']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+})();
+</script>
+</body>
+</html>

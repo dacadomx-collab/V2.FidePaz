@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Informe Técnico — FidePaz V2.0</title>
+    <meta name="description" content="Informe técnico de auditoría y migración FidePaz V1 a V2.0: arquitectura, seguridad Zero Trust e integridad de datos.">
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+</head>
+<body>
+
+<header class="site-header container">
+    <a href="../" class="brand">
+        <img class="logo" src="../assets/img/fidepaz-logo.png" alt="FidePaz">
+    </a>
+    <nav>
+        <ul class="site-nav">
+            <li><a href="../">Sitio público</a></li>
+            <li><a href="INFORME_EJECUTIVO_COLONOS.html">Informe para colonos</a></li>
+            <li><a href="../administrator/" class="btn btn-nav">Acceso Colonos</a></li>
+        </ul>
+    </nav>
+</header>
+
+<main>
+    <section class="report-hero">
+        <div class="container">
+            <p class="eyebrow">Informe técnico · Dirección de Tecnología</p>
+            <h1>Auditoría y Migración FidePaz V1 → V2.0</h1>
+            <p>Arquitectura, seguridad Zero Trust e integridad de datos — cifras verificadas contra el código y la base de datos de producción, 2026-08-05.</p>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="arf-grid">
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">-96.9%</p>
+                <p class="metric-label">Peso de base de datos (30.7 MB → 955 KB)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">-88.7%</p>
+                <p class="metric-label">Tablas en base de datos (53 → 6)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">100%</p>
+                <p class="metric-label">Consultas SQL con prepared statements</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">8/9</p>
+                <p class="metric-label">Cuentas admin comprometidas en V1 (dadas de baja)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">202 / 194 / 8,547</p>
+                <p class="metric-label">Colonos / propiedades / pagos migrados y verificados</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">12h</p>
+                <p class="metric-label">Expiración de token JWT HS256</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>Reducción de superficie de riesgo</h2>
+        <div class="chart-card">
+            <div class="chart-wrap">
+                <canvas id="chartRiesgo" role="img" aria-label="Gráfica de barras: reducción porcentual en peso de base de datos, número de tablas y cuentas comprometidas cerradas"></canvas>
+            </div>
+        </div>
+        <p class="report-footer-note">
+            <span class="badge-verified">✔ Verificado</span>
+            Cifras tomadas de la auditoría de <code>wp_users</code> (dump de <code>mercagee_colonos</code>)
+            y del esquema real de <code>mercagee_v2_FidePaz_DB</code>. No se incluyen métricas de
+            tiempo de respuesta o consumo de recursos entre backends: no existe una medición real
+            comparable entre Go y PHP en este momento — se reportará cuando exista un benchmark
+            real, no antes.
+        </p>
+    </section>
+
+    <section class="container">
+        <h2>Arquitectura y saneamiento</h2>
+        <div class="arf-grid">
+            <div class="card arf-col-2">
+                <h3>V1 — Legacy (dada de baja)</h3>
+                <p>
+                    WordPress + WooCommerce en <code>mercagee_colonos</code> (30.7 MB, 53 tablas),
+                    con backend de autenticación en Node.js sobre Google Cloud Run. Auditoría de
+                    <code>wp_users</code>: 8 de 9 cuentas administrativas con patrón de backdoor
+                    confirmado. Redirigida por completo a V2.0; no se reactivó ningún componente
+                    de esta arquitectura.
+                </p>
+            </div>
+            <div class="card arf-col-2">
+                <h3>V2.0 — Arquitectura actual</h3>
+                <p>
+                    Frontend Angular SPA (<code>/administrator</code>) + API REST bajo
+                    <code>/api/v2</code>. Base de datos consolidada desde <code>mercagee_colonoscore</code>
+                    (fuente real, 955 KB) hacia <code>mercagee_v2_FidePaz_DB</code>, con solo 6
+                    tablas de negocio. Backend Go 1.26 + Gin compilado como binario único
+                    (arquitectura objetivo); backend PHP 7.4 nativo como fallback activo en
+                    producción mientras el hosting compartido no soporte procesos persistentes
+                    propios — mismo contrato de API, misma seguridad.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
+        <h2>Seguridad Zero Trust — controles activos</h2>
+        <div class="arf-grid">
+            <div class="card arf-col-3">
+                <h3>Autenticación</h3>
+                <p>BCrypt (<code>password_verify</code> / <code>bcrypt.CompareHashAndPassword</code>) + JWT HS256 con expiración de 12h.</p>
+            </div>
+            <div class="card arf-col-3">
+                <h3>Acceso a datos</h3>
+                <p>100% de las consultas SQL vía <code>?</code> parametrizado (PDO / <code>database/sql</code>). Cero concatenación de strings en queries.</p>
+            </div>
+            <div class="card arf-col-3">
+                <h3>Superficie expuesta</h3>
+                <p>8 endpoints explícitos bajo <code>/api/v2</code>, CORS por whitelist, rate limiting por IP en login y contacto.</p>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="site-footer container">
+    <p>Informe generado a partir de auditoría técnica en vivo — FidePaz V2.0. Última verificación: 2026-08-05.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var ctx = document.getElementById('chartRiesgo');
+    if (!ctx || typeof Chart === 'undefined') { return; }
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Peso de Base de Datos', 'Tablas en Base de Datos', 'Cuentas Comprometidas Cerradas'],
+            datasets: [{
+                label: '% de reducción / saneamiento (verificado)',
+                data: [96.9, 88.7, 100],
+                backgroundColor: '#1c64f2',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: function (v) { return v + '%'; } } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+})();
+</script>
+</body>
+</html>

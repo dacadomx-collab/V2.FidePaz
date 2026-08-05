@@ -1,0 +1,7 @@
+# reportes/ — carpeta pública para los informes en HTML (infografías para
+# Dirección/Junta y para la comunidad de colonos). El .htaccess raíz ya
+# bloquea .md/.sql/.env/.log por extensión a nivel de todo el sitio —
+# INFORME_EJECUTIVO_V1_VS_V2.md (expediente técnico interno con hallazgos de
+# seguridad) sigue privado. Solo se documenta aquí explícitamente que .html
+# en esta carpeta es público a propósito.
+Options -Indexes
