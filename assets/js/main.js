@@ -134,22 +134,22 @@ const NEWS_CONTENT = {
     'asamblea-nov-2024': {
         title: 'Asamblea de asociados del 14 de noviembre del 2024',
         date: '13 de junio, 2025',
-        html: '<p>El documento completo de esta asamblea aún no se ha rescatado del sitio anterior. Contáctanos si necesitas una copia.</p>',
+        html: '<p>Estamos preparando este documento para publicarlo aquí. Si lo necesitas antes, contáctanos por el formulario de esta página.</p>',
     },
     'convocatoria-marzo-2025': {
         title: 'Convocatoria marzo 2025',
         date: '26 de marzo, 2025',
-        html: '<p>El documento completo de esta convocatoria aún no se ha rescatado del sitio anterior. Contáctanos si necesitas una copia.</p>',
+        html: '<p>Estamos preparando este documento para publicarlo aquí. Si lo necesitas antes, contáctanos por el formulario de esta página.</p>',
     },
     'convocatoria-segunda-asamblea': {
         title: 'Convocatoria segunda asamblea',
         date: '31 de enero, 2023',
-        html: '<picture><source srcset="assets/img/noticia-convocatoria-segunda-asamblea.webp" type="image/webp"><img src="assets/img/noticia-convocatoria-segunda-asamblea.jpg" alt="Convocatoria a la Segunda Asamblea General Extraordinaria de Colonos"></picture><p><a class="btn" href="assets/docs/convocatoria-segunda-asamblea-2023.pdf" target="_blank" rel="noopener">Descargar PDF original</a></p>',
+        html: '<picture><source srcset="assets/img/noticia-convocatoria-segunda-asamblea.webp" type="image/webp"><img src="assets/img/noticia-convocatoria-segunda-asamblea.jpg" alt="Convocatoria a la Segunda Asamblea General Extraordinaria de Colonos"></picture><p><a class="btn" href="assets/docs/convocatoria-segunda-asamblea-2023.pdf" target="_blank" rel="noopener">Descargar PDF</a></p>',
     },
     'proyecto-reforma': {
         title: 'Proyecto de reforma al reglamento interno FidePaz',
         date: '24 de enero, 2023',
-        html: '<p>Documento rescatado del sitio anterior.</p><p><a class="btn" href="assets/docs/proyecto-reforma-reglamento-interno.pdf" target="_blank" rel="noopener">Descargar PDF original</a></p>',
+        html: '<p><a class="btn" href="assets/docs/proyecto-reforma-reglamento-interno.pdf" target="_blank" rel="noopener">Descargar PDF</a></p>',
     },
     'cuidemos-agua': {
         title: '¡Cuidemos el agua!',
@@ -159,7 +159,7 @@ const NEWS_CONTENT = {
     'educando-mascota': {
         title: '¡Educando a mi mascota y a mí!',
         date: '8 de junio, 2022',
-        html: '<p>El documento completo de este aviso aún no se ha rescatado del sitio anterior. Contáctanos si necesitas una copia.</p>',
+        html: '<p>Estamos preparando este documento para publicarlo aquí. Si lo necesitas antes, contáctanos por el formulario de esta página.</p>',
     },
 };
 
