@@ -184,6 +184,10 @@ try {
         handle_informes_list();
     } elseif ($method === 'POST' && $path === '/announcements') {
         handle_announcements_create();
+    } elseif ($method === 'PUT' && preg_match('#^/announcements/(\d+)$#', $path, $m)) {
+        handle_announcements_update((int) $m[1]);
+    } elseif ($method === 'DELETE' && preg_match('#^/announcements/(\d+)$#', $path, $m)) {
+        handle_announcements_delete((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/catalog/streets') {
         handle_catalog('streets');
     } elseif ($method === 'GET' && $path === '/catalog/quotas') {

@@ -33,11 +33,11 @@ function handle_posts_list(): void
 
     $pdo = Database::connection();
     $stmt = $pdo->prepare(
-        'SELECT id, title, content, excerpt, image_url, published_at
+        "SELECT id, title, content, excerpt, image_url, published_at
          FROM announcements
-         WHERE category = :category
+         WHERE category = :category AND status = 'published'
          ORDER BY published_at DESC
-         LIMIT :limit OFFSET :offset'
+         LIMIT :limit OFFSET :offset"
     );
     $stmt->bindValue('category', $category);
     $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
@@ -98,16 +98,16 @@ function handle_announcements_by_category(string $category): void
 
     $pdo = Database::connection();
 
-    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM announcements WHERE category = ? AND status = 1');
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM announcements WHERE category = ? AND status = 'published'");
     $countStmt->execute([$category]);
     $total = (int) $countStmt->fetchColumn();
 
     $stmt = $pdo->prepare(
-        'SELECT id, title, content, excerpt, image_url, archivo_pdf_url, published_at
+        "SELECT id, title, content, excerpt, image_url, archivo_pdf_url, published_at
          FROM announcements
-         WHERE category = :category AND status = 1
+         WHERE category = :category AND status = 'published'
          ORDER BY published_at DESC
-         LIMIT :limit OFFSET :offset'
+         LIMIT :limit OFFSET :offset"
     );
     $stmt->bindValue('category', $category);
     $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
@@ -139,7 +139,7 @@ function handle_announcements_by_category(string $category): void
 }
 
 /**
- * POST /announcements — crear un comunicado oficial (admin/super_admin).
+ * POST /announcements — crear un comunicado/informe (admin/super_admin).
  * No forma parte del contrato que el bundle V1 esperaba (eso solo leía de
  * WordPress); es la vía real para que el panel administre contenido nuevo
  * ahora que existe una tabla propia.
@@ -154,7 +154,9 @@ function handle_announcements_create(): void
     $content = trim((string) ($body['content'] ?? ''));
     $excerpt = trim((string) ($body['excerpt'] ?? '')) ?: null;
     $category = (string) ($body['category'] ?? 'comunicados');
+    $status = (string) ($body['status'] ?? 'published');
     $imageUrl = trim((string) ($body['image_url'] ?? '')) ?: null;
+    $archivoPdfUrl = trim((string) ($body['archivo_pdf_url'] ?? '')) ?: null;
 
     if ($title === '' || $content === '') {
         Response::error(400, 'title y content son obligatorios');
@@ -162,13 +164,75 @@ function handle_announcements_create(): void
     if (!in_array($category, ['comunicados', 'financiero', 'reportes'], true)) {
         Response::error(400, 'category inválida');
     }
+    if (!in_array($status, ['published', 'draft'], true)) {
+        Response::error(400, 'status inválido (published|draft)');
+    }
 
     $pdo = Database::connection();
     $stmt = $pdo->prepare(
-        'INSERT INTO announcements (title, content, excerpt, category, image_url, author_id)
-         VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO announcements (title, content, excerpt, category, status, image_url, archivo_pdf_url, author_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    $stmt->execute([$title, $content, $excerpt, $category, $imageUrl, (int) $claims['sub']]);
+    $stmt->execute([$title, $content, $excerpt, $category, $status, $imageUrl, $archivoPdfUrl, (int) $claims['sub']]);
 
     Response::json(201, ['status' => 'ok', 'id' => (int) $pdo->lastInsertId()]);
+}
+
+/** PUT /announcements/{id} — editar un comunicado/informe (admin/super_admin). */
+function handle_announcements_update(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id FROM announcements WHERE id = ?');
+    $existing->execute([$id]);
+    if ($existing->fetch() === false) {
+        Response::error(404, 'Comunicado no encontrado');
+    }
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $title = trim((string) ($body['title'] ?? ''));
+    $content = trim((string) ($body['content'] ?? ''));
+    $excerpt = trim((string) ($body['excerpt'] ?? '')) ?: null;
+    $category = (string) ($body['category'] ?? 'comunicados');
+    $status = (string) ($body['status'] ?? 'published');
+    $imageUrl = trim((string) ($body['image_url'] ?? '')) ?: null;
+    $archivoPdfUrl = trim((string) ($body['archivo_pdf_url'] ?? '')) ?: null;
+
+    if ($title === '' || $content === '') {
+        Response::error(400, 'title y content son obligatorios');
+    }
+    if (!in_array($category, ['comunicados', 'financiero', 'reportes'], true)) {
+        Response::error(400, 'category inválida');
+    }
+    if (!in_array($status, ['published', 'draft'], true)) {
+        Response::error(400, 'status inválido (published|draft)');
+    }
+
+    $stmt = $pdo->prepare(
+        'UPDATE announcements
+         SET title = ?, content = ?, excerpt = ?, category = ?, status = ?, image_url = ?, archivo_pdf_url = ?
+         WHERE id = ?'
+    );
+    $stmt->execute([$title, $content, $excerpt, $category, $status, $imageUrl, $archivoPdfUrl, $id]);
+
+    Response::json(200, ['status' => 'ok', 'id' => $id]);
+}
+
+/** DELETE /announcements/{id} — borrar un comunicado/informe (admin/super_admin). */
+function handle_announcements_delete(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare('DELETE FROM announcements WHERE id = ?');
+    $stmt->execute([$id]);
+
+    if ($stmt->rowCount() === 0) {
+        Response::error(404, 'Comunicado no encontrado');
+    }
+
+    Response::json(200, ['status' => 'ok']);
 }
