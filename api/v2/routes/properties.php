@@ -114,8 +114,8 @@ function handle_properties_filter(): void
                 // concatenación de strings en JS y revienta el pipe de
                 // moneda con NG02100.
                 'amount' => (float) $uq['amount'],
-                'dueDate' => $uq['due_date'],
-                'payDate' => $uq['pay_date'],
+                'dueDate' => Response::isoDate($uq['due_date']),
+                'payDate' => Response::isoDate($uq['pay_date']),
                 'user' => [
                     'id' => $uq['user_id'],
                     'name' => $uq['user_name'],

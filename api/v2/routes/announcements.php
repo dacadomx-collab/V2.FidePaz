@@ -69,6 +69,76 @@ function handle_posts_list(): void
 }
 
 /**
+ * GET /comunicados?page= y GET /informes?page=
+ *
+ * Endpoints V2 nativos pedidos explícitamente por la Directiva Táctica de
+ * "reconstrucción nativa de Comunicados e Informes" -- a diferencia de
+ * `/posts` (que existe solo porque el bundle YA compilado tiene la URL de
+ * wp-json parchada hacia ese path exacto y no vale la pena volver a
+ * parchear el bundle), estos usan el contrato estándar de la API
+ * (`{status,items,meta}`) porque no hay ningún consumidor legacy que fuerce
+ * la forma WP-REST. Filtran por `category` = 'comunicados' / 'reportes'
+ * respectivamente sobre la misma tabla `announcements`.
+ */
+function handle_comunicados_list(): void
+{
+    handle_announcements_by_category('comunicados');
+}
+
+function handle_informes_list(): void
+{
+    handle_announcements_by_category('reportes');
+}
+
+function handle_announcements_by_category(string $category): void
+{
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $pdo = Database::connection();
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM announcements WHERE category = ? AND status = 1');
+    $countStmt->execute([$category]);
+    $total = (int) $countStmt->fetchColumn();
+
+    $stmt = $pdo->prepare(
+        'SELECT id, title, content, excerpt, image_url, archivo_pdf_url, published_at
+         FROM announcements
+         WHERE category = :category AND status = 1
+         ORDER BY published_at DESC
+         LIMIT :limit OFFSET :offset'
+    );
+    $stmt->bindValue('category', $category);
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    $items = array_map(static function (array $r): array {
+        return [
+            'id' => $r['id'],
+            'title' => $r['title'],
+            'content' => $r['content'],
+            'excerpt' => $r['excerpt'],
+            'imageUrl' => $r['image_url'],
+            'archivoUrl' => $r['archivo_pdf_url'],
+            'publishedAt' => Response::isoDate($r['published_at']),
+        ];
+    }, $rows);
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $items,
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}
+
+/**
  * POST /announcements — crear un comunicado oficial (admin/super_admin).
  * No forma parte del contrato que el bundle V1 esperaba (eso solo leía de
  * WordPress); es la vía real para que el panel administre contenido nuevo

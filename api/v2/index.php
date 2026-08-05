@@ -84,6 +84,7 @@ try {
     require __DIR__ . '/core/Auth.php';
     require __DIR__ . '/core/Cors.php';
     require __DIR__ . '/core/RateLimit.php';
+    require __DIR__ . '/core/Xlsx.php';
     require __DIR__ . '/routes/auth.php';
     require __DIR__ . '/routes/properties.php';
     require __DIR__ . '/routes/quotas.php';
@@ -150,6 +151,14 @@ try {
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
         // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();
+    } elseif ($method === 'GET' && preg_match('#^/payment/quotas-owners/(\d+)$#', $path, $m)) {
+        // Ruta REAL de "Estado del propietario" (detalle al hacer click en
+        // una fila de Reportes).
+        handle_payment_quotas_owner((int) $m[1]);
+    } elseif ($method === 'GET' && $path === '/payment/download-report') {
+        handle_payment_download_report();
+    } elseif ($method === 'GET' && preg_match('#^/payment/download-report-state/(\d+)$#', $path, $m)) {
+        handle_payment_download_report_state((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/payment') {
         // Ruta REAL que usa la pantalla "Pagos" (app-list-payments, chunk
         // 104) -- lista plana de pagos individuales, distinta de
@@ -169,6 +178,10 @@ try {
     } elseif ($method === 'GET' && $path === '/posts') {
         // Reemplazo real del wp-json muerto para la pantalla "Comunicados".
         handle_posts_list();
+    } elseif ($method === 'GET' && $path === '/comunicados') {
+        handle_comunicados_list();
+    } elseif ($method === 'GET' && $path === '/informes') {
+        handle_informes_list();
     } elseif ($method === 'POST' && $path === '/announcements') {
         handle_announcements_create();
     } elseif ($method === 'GET' && $path === '/catalog/streets') {

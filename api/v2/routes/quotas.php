@@ -61,6 +61,8 @@ function handle_quotas_list(): void
 
     $rows = array_map(static function (array $r): array {
         $r['amount'] = (float) $r['amount'];
+        $r['due_date'] = Response::isoDate($r['due_date']);
+        $r['pay_date'] = Response::isoDate($r['pay_date']);
         return $r;
     }, $stmt->fetchAll());
     // "items" (+ "meta") es alias de "data" -- ver nota en properties.php,
@@ -192,8 +194,8 @@ function handle_payment_list_owners(): void
                 'id' => $q['id'],
                 'status' => $q['status'],
                 'amount' => $amount,
-                'dueDate' => $q['due_date'],
-                'payDate' => $q['pay_date'],
+                'dueDate' => Response::isoDate($q['due_date']),
+                'payDate' => Response::isoDate($q['pay_date']),
                 'property' => [
                     'id' => $q['property_id'],
                     'numOficial' => $q['numOficial'],
@@ -340,8 +342,8 @@ function handle_payments_list(): void
             'id' => $r['id'],
             'status' => $r['status'],
             'amount' => (float) $r['amount'],
-            'dueDate' => $r['due_date'],
-            'payDate' => $r['pay_date'],
+            'dueDate' => Response::isoDate($r['due_date']),
+            'payDate' => Response::isoDate($r['pay_date']),
             'receipt' => $r['receipt'],
             'user' => ['id' => $r['user_id'], 'name' => $r['user_name'], 'code' => $r['user_code']],
             'property' => [
@@ -349,6 +351,187 @@ function handle_payments_list(): void
                 'numOficial' => $r['numOficial'],
                 'street' => ['name' => $r['street_name']],
             ],
+        ];
+    }, $stmt->fetchAll());
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $items,
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}
+
+/**
+ * GET /payment/download-report?search=&streets[]=&initDate=&endDate=
+ *
+ * Botón "Descargar" de la pantalla "Reportes" (`app-list-reports.
+ * downloadXLSX()`, chunk 964 -- confirmado: pide `responseType:"blob"` y
+ * arma el nombre `Reporte-DD-MM-YYYY.xlsx` en el cliente). Mismas columnas
+ * que la tabla en pantalla: Propietario, Código, Dirección, Pagado, Deuda.
+ */
+function handle_payment_download_report(): void
+{
+    Auth::requireUser();
+
+    $where = ['1=1'];
+    $params = [];
+    if (!empty($_GET['search'])) {
+        $where[] = 'u.name LIKE :search';
+        $params['search'] = '%' . $_GET['search'] . '%';
+    }
+    if (!empty($_GET['initDate'])) {
+        $where[] = 'uq.due_date >= :initDate';
+        $params['initDate'] = substr((string) $_GET['initDate'], 0, 10);
+    }
+    if (!empty($_GET['endDate'])) {
+        $where[] = 'uq.due_date <= :endDate';
+        $params['endDate'] = substr((string) $_GET['endDate'], 0, 10);
+    }
+    if (!empty($_GET['streets']) && is_array($_GET['streets'])) {
+        $ids = array_map('intval', $_GET['streets']);
+        $placeholders = [];
+        foreach ($ids as $i => $id) {
+            $key = "street_{$i}";
+            $placeholders[] = ":{$key}";
+            $params[$key] = $id;
+        }
+        $where[] = 'p.street_id IN (' . implode(',', $placeholders) . ')';
+    }
+
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare(
+        'SELECT u.id, u.name, u.code,
+                SUM(CASE WHEN uq.status = 2 THEN uq.amount ELSE 0 END) AS paid,
+                SUM(CASE WHEN uq.status <> 2 THEN uq.amount ELSE 0 END) AS due
+         FROM `user` u
+         LEFT JOIN user_quotas uq ON uq.user_id = u.id
+         LEFT JOIN property p ON p.id = uq.property_id
+         WHERE u.deleteAt IS NULL AND (' . implode(' AND ', $where) . ')
+         GROUP BY u.id, u.name, u.code
+         ORDER BY u.name'
+    );
+    $stmt->execute($params);
+
+    $rows = [['Propietario', 'Código', 'Pagado', 'Deuda']];
+    foreach ($stmt->fetchAll() as $r) {
+        $rows[] = [$r['name'], $r['code'] ?? 'No Asignado', number_format((float) $r['paid'], 2), number_format((float) $r['due'], 2)];
+    }
+
+    Xlsx::send(Xlsx::build($rows), 'Reporte-' . date('d-m-Y') . '.xlsx');
+}
+
+/**
+ * GET /payment/download-report-state/{id}?initDate=&endDate=
+ *
+ * Botón "Descargar" de la pantalla "Estado del propietario"
+ * (`app-owner-state.downloadXLSX()`). Mismas columnas que la tabla en
+ * pantalla: Fecha de vencimiento, Monto, Estado, Fecha de pago.
+ */
+function handle_payment_download_report_state(int $userId): void
+{
+    Auth::requireUser();
+
+    $where = ['uq.user_id = :user_id'];
+    $params = ['user_id' => $userId];
+    if (!empty($_GET['initDate'])) {
+        $where[] = 'uq.due_date >= :initDate';
+        $params['initDate'] = substr((string) $_GET['initDate'], 0, 10);
+    }
+    if (!empty($_GET['endDate'])) {
+        $where[] = 'uq.due_date <= :endDate';
+        $params['endDate'] = substr((string) $_GET['endDate'], 0, 10);
+    }
+
+    $pdo = Database::connection();
+    $userStmt = $pdo->prepare('SELECT name, code FROM `user` WHERE id = ?');
+    $userStmt->execute([$userId]);
+    $user = $userStmt->fetch();
+    if ($user === false) {
+        Response::error(404, 'Propietario no encontrado');
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT due_date, amount, status, pay_date FROM user_quotas uq
+         WHERE ' . implode(' AND ', $where) . '
+         ORDER BY due_date DESC'
+    );
+    $stmt->execute($params);
+
+    $rows = [['Fecha de vencimiento', 'Monto', 'Estado', 'Fecha de pago']];
+    foreach ($stmt->fetchAll() as $r) {
+        $rows[] = [
+            substr((string) $r['due_date'], 0, 10),
+            number_format((float) $r['amount'], 2),
+            ((int) $r['status'] === 2) ? 'Pagado' : 'No Pagado',
+            $r['pay_date'] !== null ? substr((string) $r['pay_date'], 0, 10) : 'No Ingresado',
+        ];
+    }
+
+    $filename = 'Reporte-' . $user['name'] . '-' . ($user['code'] ?? '') . '.xlsx';
+    Xlsx::send(Xlsx::build($rows), $filename);
+}
+
+/**
+ * GET /payment/quotas-owners/{id}?page=&initDate=&endDate=
+ *
+ * Ruta REAL de la pantalla "Estado del propietario" (`app-owner-state`,
+ * children de `app-list-reports`, chunk 964 -- confirmado: al hacer click
+ * en una fila de "Reportes", `goOwner()` navega a `/home/reports/state-owner`
+ * pasando el propietario completo como `router state` (sin llamar a la API);
+ * es ESA pantalla la que sí llama a `paymentService.getPaymentsByUserAndDate
+ * (id, page, initDate, endDate)` → esta ruta. La tabla que consume la
+ * respuesta muestra: Fecha de vencimiento, Monto, Estado, Fecha de pago.
+ */
+function handle_payment_quotas_owner(int $userId): void
+{
+    Auth::requireUser();
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $where = ['uq.user_id = :user_id'];
+    $params = ['user_id' => $userId];
+    if (!empty($_GET['initDate'])) {
+        $where[] = 'uq.due_date >= :initDate';
+        $params['initDate'] = substr((string) $_GET['initDate'], 0, 10);
+    }
+    if (!empty($_GET['endDate'])) {
+        $where[] = 'uq.due_date <= :endDate';
+        $params['endDate'] = substr((string) $_GET['endDate'], 0, 10);
+    }
+
+    $pdo = Database::connection();
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM user_quotas uq WHERE ' . implode(' AND ', $where));
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $sql = 'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt
+            FROM user_quotas uq
+            WHERE ' . implode(' AND ', $where) . '
+            ORDER BY uq.due_date DESC
+            LIMIT :limit OFFSET :offset';
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $items = array_map(static function (array $r): array {
+        return [
+            'id' => $r['id'],
+            'status' => $r['status'],
+            'amount' => (float) $r['amount'],
+            'dueDate' => Response::isoDate($r['due_date']),
+            'payDate' => Response::isoDate($r['pay_date']),
+            'receipt' => $r['receipt'],
         ];
     }, $stmt->fetchAll());
 
