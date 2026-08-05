@@ -1,6 +1,6 @@
 # 📊 INFORME EJECUTIVO DE AUDITORÍA Y MIGRACIÓN: FIDEPAZ V1 VS V2.0
 
-**Fecha de actualización:** 4 de agosto de 2026
+**Fecha de actualización:** 5 de agosto de 2026
 **Autor:** Dirección Técnica & Core Architecture
 **Estado:** 🔴 V1 dada de baja y redirigida a V2 · 🟢 V2 en producción — API, login, panel admin y landing operativos
 
@@ -12,7 +12,89 @@
 
 ---
 
-## 🚀 1. RESUMEN EJECUTIVO
+## 🎯 PRESENTACIÓN EJECUTIVA — IMPACTO V1 vs V2.0
+
+*(Sección preparada para presentación a Dirección/Junta Directiva)*
+
+FidePaz operaba sobre un WordPress heredado, sin mantenimiento activo, que terminó **totalmente
+comprometido**: 8 de sus 9 cuentas administrativas mostraban un patrón confirmado de backdoor.
+En paralelo, su backend de autenticación (Node.js en Google Cloud Run) fallaba de forma
+intermitente por bloqueos de firewall del hosting. FidePaz V2.0 reemplaza esa arquitectura por
+un sistema propio, auditado capa por capa: base de datos reducida a solo las tablas de negocio
+reales, 100% de las consultas con *prepared statements*, autenticación JWT con contraseñas en
+BCrypt, y una superficie de ataque drásticamente menor. El resultado: **202 colonos reales, 194
+propiedades y 8,547 registros de pagos migrados y verificados sin pérdida de integridad**
+(conteo verificado en vivo contra la base de datos de producción, 2026-08-05), sobre una base
+que ya no depende de un CMS público ni de infraestructura externa intermitente.
+
+### 📊 Reducción de superficie de riesgo (verificado contra el código y la BD real)
+
+```mermaid
+xychart-beta
+    title "Reduccion de Superficie de Riesgo: V1 -> V2.0 (verificado)"
+    x-axis ["Peso de Base de Datos", "Tablas en Base de Datos", "Cuentas Admin Comprometidas Cerradas"]
+    y-axis "% de reduccion / saneamiento" 0 --> 100
+    bar [96.9, 88.7, 100]
+```
+
+> Lectura: -96.9% en peso de base de datos (30.7 MB → 955 KB), -88.7% en número de tablas
+> (53 → 6), y 100% del perímetro de cuentas administrativas comprometidas cerrado (8/9 cuentas
+> backdoor de V1 dadas de baja, cero cuentas comprometidas en V2). Cifras tomadas directamente
+> de la auditoría de `wp_users` y del esquema real de ambas bases de datos — ver Anexo Técnico
+> §3 y §5. **Tiempos de respuesta y consumo de recursos no se grafican por no tener aún una
+> medición real comparable entre ambos sistemas** (ver nota metodológica arriba).
+
+### 🔐 Topología de seguridad V2.0 (Zero Trust)
+
+```mermaid
+flowchart LR
+    U["Usuario / Navegador"] -->|HTTPS| SPA["Angular SPA administrator/"]
+    SPA -->|"POST credenciales"| LOGIN["POST /api/v2/auth/login"]
+    LOGIN -->|"BCrypt password_verify"| DB[("mercagee_v2_FidePaz_DB")]
+    LOGIN -->|"Emite"| JWT["JWT HS256 (12h)"]
+    JWT --> SPA
+    SPA -->|"Authorization: Bearer"| API["API REST /api/v2/*"]
+    API --> GUARD{"Middleware Zero Trust"}
+    GUARD -->|"Prepared Statements 100%"| DB
+    API -->|"Backend activo en produccion"| PHP["PHP 7.4 Fallback Nativo"]
+    API -.->|"Backend objetivo, en espera de hosting con soporte Node/VPS"| GO["Go 1.26 / Gin"]
+    PHP --> DB
+    GO -.-> DB
+```
+
+> Nota de precisión técnica: el backend **Go es la arquitectura objetivo** (ya compilado,
+> probado y con seguridad equivalente), pero el hosting compartido actual no soporta procesos
+> persistentes propios — por eso el **fallback PHP nativo es el que atiende el tráfico real hoy**,
+> con el mismo contrato de API y el mismo nivel de seguridad. Ver Anexo Técnico §4 para el
+> detalle completo de este hallazgo de infraestructura.
+
+### ⚔️ Tabla comparativa (V1 Legacy vs V2.0)
+
+| Criterio | V1 (Legacy WordPress) | V2.0 (Angular + API REST) | Veredicto |
+| :--- | :--- | :--- | :--- |
+| **Arquitectura** | Monolito WordPress + plugins de terceros + proxy a backend Node externo | SPA Angular desacoplada + API REST propia (Go/PHP) | ✅ V2.0 — desacoplado y auditable |
+| **Autenticación** | Hashing propio de WordPress (dependiente de versión/plugins, sin política de rotación verificada) | BCrypt (`password_verify`) + JWT HS256 con expiración de 12h | ✅ V2.0 — estándar criptográfico verificado |
+| **Cuentas administrativas** | 8 de 9 con patrón de backdoor confirmado (88.8% comprometido) | 0 cuentas comprometidas; altas controladas y auditadas | ✅ V2.0 — perímetro saneado al 100% |
+| **Acceso a datos** | Sin verificación de *prepared statements* en el código legado | 100% de las consultas parametrizadas (`?`), sin concatenación de SQL | ✅ V2.0 — verificado línea por línea |
+| **Superficie de la base de datos** | 53 tablas (WordPress/WooCommerce/plugins) | 6 tablas de negocio real | ✅ V2.0 — -88.7% de complejidad |
+| **UI/UX del panel** | Vistas estáticas, sin adaptación a tema ni accesibilidad documentada | ARF-Grid 100% responsivo, Modo Día/Noche persistente, animaciones de foco, botón "ir arriba" | ✅ V2.0 |
+| **Integridad de datos migrados** | — | 202 colonos reales, 194 propiedades y 8,547 registros de pagos, verificados en vivo contra el esquema con FKs e índices (conteo actual, 2026-08-05; la fuente original antes de la depuración registraba 218/198/10,758) | ✅ V2.0 — cero pérdida de integridad en los datos válidos |
+
+### 🏁 Conclusión ejecutiva
+
+La adopción de un protocolo disciplinado de saneamiento — auditar antes de migrar, verificar
+cada cifra contra el código y la base de datos real, y aislar en vez de intentar rescatar la
+infraestructura comprometida de V1 — permitió cerrar en días un riesgo de seguridad activo que
+llevaba tiempo sin atenderse, sin interrumpir el servicio a los colonos. FidePaz V2.0 queda
+sobre una base técnica auditable, con autenticación moderna, base de datos reducida a lo
+esencial y una arquitectura pensada para escalar: el backend Go ya está listo como destino final
+en cuanto el hosting lo permita, y el fallback PHP garantiza continuidad de servicio mientras
+tanto. Es una base sólida para crecer los próximos años — el ritmo real de esa proyección se
+medirá con datos, no se declara de antemano.
+
+---
+
+## 🚀 1. CONTEXTO Y ANTECEDENTES (DETALLE TÉCNICO)
 
 FidePaz está migrando de un sistema V1 monolítico (WordPress + WooCommerce + un backend Node en
 Google Cloud Run) — hoy totalmente comprometido por malware y dado de baja — hacia una
