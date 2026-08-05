@@ -253,5 +253,11 @@ proyecto inmobiliario, respectivamente), no a FidePaz.
 | 2026-08-05 | Fix de imágenes rotas en login (`assets/icons/logo.png`, `assets/wallpapers/login.jpg` devolvían el fallback SPA disfrazado de imagen) | ✅ Corregido y verificado (`Content-Type` correcto) |
 | 2026-08-05 | Rediseño visual del login (tarjeta con sombra/bordes suaves, animación de foco en inputs, hover atómico en botón, insignia de seguridad) vía CSS sobre el bundle ya compilado | ✅ Desplegado en producción |
 | 2026-08-05 | Verificación a nivel API de `/properties`, `/user-quotas` (paginación `limit`/`offset`) y `/users` | ✅ Datos reales, paginación correcta — **no se pudo verificar consola de navegador (F12) sin acceso a navegador real; requiere confirmación visual del Arquitecto** |
+| 2026-08-05 | Bloqueo de rate limit en login liberado (10 intentos/5min agotados por pruebas propias) y subido a 20/5min en Go y PHP fallback | ✅ Verificado: 3 cuentas de prueba con `200 OK` + JWT tras el fix |
+| 2026-08-05 | Conmutador Día/Noche (persistente en `localStorage`, respeta paleta institucional vía `data-theme`) y botón flotante "Ir arriba" (aparece tras 300px, scroll suave) en landing | ✅ Probado localmente (PHP built-in server) antes de push, verificado en vivo tras deploy |
+| 2026-08-05 | Menú hamburguesa móvil — auditado, ya existía y funciona correctamente (breakpoint 640px) | ✅ Sin cambios necesarios |
+
+**Nota sobre el mandato de "verificación pre-push obligatoria":** todo lo del 2026-08-05 se probó localmente antes de comitear (lint PHP, `go build`/`go vet`, sintaxis JS con `node -c`, servidor local con PHP built-in, verificación de cero inline-styles/cero `!important` real) — el único punto que sigue sin poder verificarse al 100% es la consola del navegador (F12) en vivo, porque este entorno no tiene navegador real disponible.
+
 | Pendiente | Cambiar la contraseña débil de `admin@hotmail.com` por una fuerte | ⏳ Recomendado, no bloqueante |
 | Pendiente | Retiro seguro de `mercagee_colonos` y `mercagee_colonoscore` del hosting legado | ⏳ No iniciado |
