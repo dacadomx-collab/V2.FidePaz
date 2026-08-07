@@ -545,3 +545,94 @@ function handle_payment_quotas_owner(int $userId): void
         ],
     ]);
 }
+
+/**
+ * GET /payment/owners — "Mi estado de cuenta" del colono autenticado.
+ *
+ * Hallazgo 2026-08-06: el Consejo reportó "hay acceso a las cuentas pero
+ * NO a la información" para colonos con rol `owner`. Se rastreó el
+ * componente real `app-owners-resume` (ruta `/home/owners/resume`, a
+ * donde el guard de rutas del bundle -- `role=='owner' && url!='owners'`
+ * -- REDIRIGE automáticamente a cualquier colono que inicie sesión). Ese
+ * componente llama a `paymentService.getAllPaymentsByUser()` → esta ruta,
+ * SIN parámetro de id -- el usuario se identifica por el JWT, nunca por
+ * la URL, así que un colono jamás puede pedir los pagos de otro. La ruta
+ * simplemente no existía → 404 → tabla vacía, aunque el login (200 OK)
+ * hiciera parecer que "sí hay acceso".
+ *
+ * **Forma de respuesta atípica a propósito:** `{items, total}`, NO
+ * `{status,items,meta}` -- el componente lee `H.items` y `H.total`
+ * directo (confirmado en el `.subscribe()` real), sin envoltura.
+ */
+function handle_payment_owners(): void
+{
+    $claims = Auth::requireUser();
+    $userId = (int) $claims['sub'];
+
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare(
+        'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt,
+                p.id AS property_id, p.numOficial, s.name AS street_name
+         FROM user_quotas uq
+         LEFT JOIN property p ON p.id = uq.property_id
+         LEFT JOIN street s ON s.id = p.street_id
+         WHERE uq.user_id = :user_id
+         ORDER BY uq.due_date DESC'
+    );
+    $stmt->bindValue('user_id', $userId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $items = array_map(static function (array $r): array {
+        return [
+            'id' => $r['id'],
+            'status' => $r['status'],
+            'amount' => (float) $r['amount'],
+            'dueDate' => Response::isoDate($r['due_date']),
+            'payDate' => Response::isoDate($r['pay_date']),
+            'receipt' => $r['receipt'],
+            'property' => [
+                'id' => $r['property_id'],
+                'numOficial' => $r['numOficial'],
+                'extras' => [],
+                'street' => ['name' => $r['street_name']],
+            ],
+        ];
+    }, $stmt->fetchAll());
+
+    Response::json(200, ['items' => $items, 'total' => count($items)]);
+}
+
+/**
+ * GET /payment/get-file/{id} — descarga del comprobante/recibo de una cuota.
+ *
+ * **Limitación honesta, no un bug oculto:** `user_quotas.receipt` sí tiene
+ * datos reales para 5,170 registros (ej. `images/2022/11/9/<uuid>.jpeg`),
+ * pero esos archivos físicos NUNCA se migraron a este hosting -- vivían en
+ * la infraestructura Node.js/Cloud Run original de la V1 (no en el
+ * WordPress del que sí se rescató contenido), y no hay rastro de su URL
+ * base ni en el bundle ni en el backup disponible. Responde 404 con un
+ * mensaje claro en vez de simular un archivo que no existe. Igual valida
+ * que la cuota pertenezca al colono autenticado (si no es admin/super_admin)
+ * antes de admitir que el registro existe, para no filtrar si otro
+ * colono tiene o no comprobante.
+ */
+function handle_payment_get_file(int $quotaId): void
+{
+    $claims = Auth::requireUser();
+
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare('SELECT user_id, receipt FROM user_quotas WHERE id = ?');
+    $stmt->execute([$quotaId]);
+    $row = $stmt->fetch();
+
+    $isOwner = ($claims['role'] ?? '') === 'owner';
+    if ($row === false || ($isOwner && (int) $row['user_id'] !== (int) $claims['sub'])) {
+        Response::error(404, 'Comprobante no encontrado');
+    }
+
+    Response::error(
+        404,
+        'El comprobante existe en el registro histórico pero el archivo no está disponible: '
+        . 'no se migró desde la infraestructura original de la V1.'
+    );
+}

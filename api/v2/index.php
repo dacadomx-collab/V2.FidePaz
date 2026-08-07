@@ -159,6 +159,12 @@ try {
         handle_payment_download_report();
     } elseif ($method === 'GET' && preg_match('#^/payment/download-report-state/(\d+)$#', $path, $m)) {
         handle_payment_download_report_state((int) $m[1]);
+    } elseif ($method === 'GET' && $path === '/payment/owners') {
+        // Ruta REAL de "Mi estado de cuenta" para el colono autenticado
+        // (app-owners-resume) -- el usuario sale del JWT, nunca de la URL.
+        handle_payment_owners();
+    } elseif ($method === 'GET' && preg_match('#^/payment/get-file/(\d+)$#', $path, $m)) {
+        handle_payment_get_file((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/payment') {
         // Ruta REAL que usa la pantalla "Pagos" (app-list-payments, chunk
         // 104) -- lista plana de pagos individuales, distinta de
@@ -171,6 +177,8 @@ try {
         handle_users_filter();
     } elseif ($method === 'GET' && $path === '/user/byterm') {
         handle_user_byterm();
+    } elseif ($method === 'PUT' && $path === '/user/update-privacy') {
+        handle_user_update_privacy();
     } elseif ($method === 'GET' && $path === '/user') {
         // ngOnInit() de la lista de Propietarios llama a esta ruta BARE en
         // la carga inicial -- mismo handler, mismo comportamiento sin filtro.

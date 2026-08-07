@@ -135,3 +135,22 @@ function handle_catalog(string $which): void
     // properties.php) -- no confirmado como roto, pero mismo patrón de riesgo.
     Response::json(200, ['status' => 'ok', 'data' => $rows, 'items' => $rows, 'meta' => ['total' => count($rows)]]);
 }
+
+/**
+ * PUT /user/update-privacy — el colono autenticado acepta el aviso de
+ * privacidad la primera vez que entra a "Mi estado de cuenta"
+ * (`app-owners-resume.acceptPrivacy()`, muestra un modal bloqueante hasta
+ * que `user.privacy` sea verdadero). Sin body -- siempre marca al usuario
+ * del JWT como aceptado, nunca a otro.
+ */
+function handle_user_update_privacy(): void
+{
+    $claims = Auth::requireUser();
+    $userId = (int) $claims['sub'];
+
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare('UPDATE `user` SET privacy = 1 WHERE id = ?');
+    $stmt->execute([$userId]);
+
+    Response::json(200, ['status' => 'ok']);
+}
