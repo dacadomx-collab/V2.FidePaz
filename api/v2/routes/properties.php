@@ -246,10 +246,15 @@ function handle_property_update(int $id): void
         Response::error(404, 'Propiedad no encontrada');
     }
 
+    // array_key_exists (no "??"): un PUT parcial que simplemente OMITE
+    // street_id/quota_id debe conservar el valor actual, no borrarlo -- un
+    // "??" aquí confundía "campo no enviado" con "campo enviado como null"
+    // y vaciaba ambas columnas en cualquier PUT que no las incluyera
+    // explícitamente (encontrado durante pruebas reales 2026-08-07).
     $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
     $numOficial = $body['numOficial'] ?? null;
-    $streetId = $body['street_id'] ?? null;
-    $quotaId = $body['quota_id'] ?? null;
+    $streetId = array_key_exists('street_id', $body) ? $body['street_id'] : $before['street_id'];
+    $quotaId = array_key_exists('quota_id', $body) ? $body['quota_id'] : $before['quota_id'];
     $dueDay = (int) ($body['due_day'] ?? $before['due_day']);
 
     if ($numOficial === null || !is_numeric($numOficial)) {

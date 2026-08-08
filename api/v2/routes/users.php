@@ -184,12 +184,15 @@ function handle_user_update(int $id): void
         Response::error(404, 'Propietario no encontrado');
     }
 
+    // array_key_exists (no "??"): un PUT parcial que omite phone/cellphone/
+    // code debe conservar el valor actual, no borrarlo (mismo bug real
+    // encontrado y corregido en handle_property_update, 2026-08-07).
     $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
     $name = trim((string) ($body['name'] ?? ''));
     $email = trim((string) ($body['email'] ?? ''));
-    $phone = trim((string) ($body['phone'] ?? '')) ?: null;
-    $cellphone = trim((string) ($body['cellphone'] ?? '')) ?: null;
-    $code = trim((string) ($body['code'] ?? '')) ?: null;
+    $phone = array_key_exists('phone', $body) ? (trim((string) $body['phone']) ?: null) : $before['phone'];
+    $cellphone = array_key_exists('cellphone', $body) ? (trim((string) $body['cellphone']) ?: null) : $before['cellphone'];
+    $code = array_key_exists('code', $body) ? (trim((string) $body['code']) ?: null) : $before['code'];
     $role = (string) ($body['role'] ?? $before['role']);
 
     if ($name === '' || $email === '') {
