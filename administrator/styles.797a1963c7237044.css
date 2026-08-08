@@ -147,3 +147,42 @@ table {
 th {
     letter-spacing: 0.02em;
 }
+
+/* Paginación (2026-08-08) — el patrón "-space-x-px" (bordes superpuestos
+   con margen negativo) del bundle está pensado para pocos elementos; con
+   cientos de páginas (Pagos: 428) se ve amontonado y sin espacio, como
+   reportó el Capitán. Solo CSS: convierte cada número en un chip propio
+   con espacio real, en flex-wrap para que quepan varias filas de forma
+   ordenada. Selector con más especificidad que las clases de Tailwind
+   originales (nav + 2 clases + descendientes), así que gana sin
+   !important. Al vivir en el stylesheet compartido, se aplica igual en
+   las 5 pantallas que usan este mismo patrón de paginación. */
+nav ul.inline-flex.-space-x-px {
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    max-width: 100%;
+}
+
+nav ul.inline-flex.-space-x-px > li > span,
+nav ul.inline-flex.-space-x-px > li > a {
+    border-radius: 0.375rem;
+    margin: 0;
+}
+
+/* Tipografía (ajuste 2026-08-08) — "Inter" tiene una altura-x más grande
+   que la fuente de sistema original, así que el mismo tamaño en rem se
+   percibe más grande de lo esperado. Se reduce específicamente
+   ".text-lg" (la clase que el bundle usa en la mayoría de celdas de
+   tabla y etiquetas de formulario) al tamaño que antes tenía ".text-base",
+   y se regresa el interlineado base a 1.5 (el valor original de
+   Tailwind). Mismo mecanismo que arriba: misma especificidad que la
+   regla original de Tailwind, pero declarada después, así que gana por
+   orden de cascada sin necesitar !important. */
+html {
+    line-height: 1.5;
+}
+
+.text-lg {
+    font-size: 1rem;
+    line-height: 1.5rem;
+}
