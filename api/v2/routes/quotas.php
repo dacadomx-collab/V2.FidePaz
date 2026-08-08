@@ -307,6 +307,20 @@ function handle_payments_list(): void
         }
         $where[] = 'p.street_id IN (' . implode(',', $placeholders) . ')';
     }
+    // Búsqueda unificada (2026-08-09): un solo término, busca a la vez en
+    // código, nombre del colono, nombre de calle y número oficial. Cada
+    // ocurrencia usa su propio placeholder (:q1.._q4) -- no ":q" repetido
+    // (mismo bug real corregido en /user/filter y /property/filter,
+    // ver BITACORA_HITOS_Y_LOGROS.md). Aditiva: no reemplaza los filtros
+    // específicos de arriba, solo da una alternativa más simple.
+    if (!empty($_GET['q'])) {
+        $where[] = '(u.code LIKE :q1 OR u.name LIKE :q2 OR s.name LIKE :q3 OR p.numOficial LIKE :q4)';
+        $term = '%' . $_GET['q'] . '%';
+        $params['q1'] = $term;
+        $params['q2'] = $term;
+        $params['q3'] = $term;
+        $params['q4'] = $term;
+    }
 
     $pdo = Database::connection();
 
@@ -314,6 +328,7 @@ function handle_payments_list(): void
         'SELECT COUNT(*) FROM user_quotas uq
          LEFT JOIN `user` u ON u.id = uq.user_id
          LEFT JOIN property p ON p.id = uq.property_id
+         LEFT JOIN street s ON s.id = p.street_id
          WHERE ' . implode(' AND ', $where)
     );
     $countStmt->execute($params);

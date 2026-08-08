@@ -62,5 +62,65 @@
   });
   observer.observe(document.body, { childList: true, subtree: true });
 })();
+(function () {
+  // Botón de modo día/noche + botón "subir arriba" (2026-08-09) — igual
+  // que los fixes anteriores, JS/CSS puro inyectado junto al bundle de
+  // Angular, sin tocar ninguna instrucción compilada. El panel YA trae
+  // clases `dark:` de Tailwind compiladas en formularios/modales
+  // (estrategia "class" -- se activan solo con `.dark` en <html>); este
+  // script agrega esa clase y respaldo CSS adicional para que el resto
+  // de la página (fondo, tarjetas, tablas) también se vea oscuro, no
+  // solo los formularios.
+  var THEME_KEY = 'fidepaz_admin_theme';
+
+  function applyTheme(theme) {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    var btn = document.getElementById('fp-theme-toggle');
+    if (btn) { btn.textContent = theme === 'dark' ? '☀️' : '🌙'; }
+  }
+
+  function initTheme() {
+    var saved = localStorage.getItem(THEME_KEY);
+    var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(theme);
+  }
+
+  function buildFloatingButtons() {
+    var themeBtn = document.createElement('button');
+    themeBtn.id = 'fp-theme-toggle';
+    themeBtn.type = 'button';
+    themeBtn.setAttribute('aria-label', 'Cambiar modo día/noche');
+    themeBtn.className = 'fp-float-btn fp-theme-btn';
+    themeBtn.addEventListener('click', function () {
+      var next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    });
+
+    var topBtn = document.createElement('button');
+    topBtn.id = 'fp-scroll-top';
+    topBtn.type = 'button';
+    topBtn.setAttribute('aria-label', 'Subir al inicio');
+    topBtn.className = 'fp-float-btn fp-scroll-top-btn';
+    topBtn.textContent = '↑';
+    topBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    document.body.appendChild(themeBtn);
+    document.body.appendChild(topBtn);
+
+    window.addEventListener('scroll', function () {
+      topBtn.classList.toggle('fp-visible', window.scrollY > 300);
+    });
+  }
+
+  initTheme();
+  if (document.body) {
+    buildFloatingButtons();
+  } else {
+    document.addEventListener('DOMContentLoaded', buildFloatingButtons);
+  }
+})();
 </script>
 </body></html>

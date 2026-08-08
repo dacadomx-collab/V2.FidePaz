@@ -186,3 +186,94 @@ html {
     font-size: 1rem;
     line-height: 1.5rem;
 }
+
+/* Botón flotante día/noche + subir arriba (2026-08-09). Puro CSS/JS
+   inyectado -- no depende de ninguna instrucción compilada de Angular. */
+.fp-float-btn {
+    position: fixed;
+    z-index: 9999;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 9999px;
+    border: none;
+    background-color: #ffffff;
+    color: #1f2937;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+}
+
+.fp-float-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+}
+
+.fp-theme-btn {
+    top: 1.25rem;
+    right: 1.25rem;
+}
+
+.fp-scroll-top-btn {
+    bottom: 1.5rem;
+    right: 1.25rem;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.5rem);
+}
+
+.fp-scroll-top-btn.fp-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.dark .fp-float-btn {
+    background-color: #1f2937;
+    color: #f1f5f9;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Modo oscuro real para el panel (2026-08-09) — el bundle solo trae
+   clases `dark:` compiladas para formularios/modales; el resto de la
+   página (fondo, tarjetas, tablas, texto) no tenía cobertura. Se agregan
+   overrides con más especificidad que las utilidades Tailwind originales
+   (2 clases contra 1), así ganan sin `!important` sin importar el orden
+   en el archivo. Cubre las clases de fondo/texto/borde más usadas en
+   todo el panel (confirmado por decompilación: bg-white, bg-gray-50/100,
+   text-gray-500..900, border-gray-200/300). */
+.dark body {
+    background-color: #0b1120;
+    color: #e5e7eb;
+}
+
+.dark .bg-white { background-color: #1f2937; }
+.dark .bg-gray-50 { background-color: #111827; }
+.dark .bg-gray-100 { background-color: #1f2937; }
+.dark .bg-gray-200 { background-color: #374151; }
+
+.dark .text-gray-900 { color: #f9fafb; }
+.dark .text-gray-800 { color: #f3f4f6; }
+.dark .text-gray-700 { color: #e5e7eb; }
+.dark .text-gray-600 { color: #d1d5db; }
+.dark .text-gray-500 { color: #9ca3af; }
+
+.dark .border-gray-200 { border-color: #374151; }
+.dark .border-gray-300 { border-color: #4b5563; }
+.dark .border-slate-500 { border-color: #64748b; }
+
+.dark input[type=text],
+.dark input[type=email],
+.dark input[type=password],
+.dark input[type=date],
+.dark input[type=number],
+.dark select,
+.dark textarea {
+    background-color: #111827;
+    border-color: #4b5563;
+    color: #f1f5f9;
+}
