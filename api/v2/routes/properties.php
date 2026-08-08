@@ -63,6 +63,23 @@ function handle_properties_filter(): void
         }
         $where[] = 'p.street_id IN (' . implode(',', $placeholders) . ')';
     }
+    // Búsqueda multicampo (2026-08-07): por propietario y por estatus de
+    // pago -- `property` no tiene FK directo a un colono, así que se busca
+    // vía `user_quotas` (relación real, histórica).
+    if (!empty($_GET['owner'])) {
+        $where[] = 'EXISTS (SELECT 1 FROM user_quotas uq2 JOIN `user` u2 ON u2.id = uq2.user_id
+                             WHERE uq2.property_id = p.id AND u2.name LIKE :owner)';
+        $params['owner'] = '%' . $_GET['owner'] . '%';
+    }
+    if (!empty($_GET['quota_id'])) {
+        $where[] = 'p.quota_id = :quota_id';
+        $params['quota_id'] = (int) $_GET['quota_id'];
+    }
+    if (!empty($_GET['status']) && in_array($_GET['status'], ['pending', 'paid'], true)) {
+        $statusCode = $_GET['status'] === 'paid' ? 2 : 1;
+        $where[] = 'EXISTS (SELECT 1 FROM user_quotas uq3 WHERE uq3.property_id = p.id AND uq3.status = :status_code)';
+        $params['status_code'] = $statusCode;
+    }
 
     $pdo = Database::connection();
 
@@ -200,4 +217,65 @@ function handle_extras_all(): void
         'items' => [],
         'meta' => ['total' => 0, 'totalPages' => 0, 'page' => 1],
     ]);
+}
+
+/**
+ * PUT /property/{id} — editar una propiedad (admin/super_admin).
+ *
+ * Campos reales editables: numOficial, street_id, quota_id, due_day.
+ * **Corrección de alcance:** la directiva pedía también editar "clave
+ * catastral" y "propietario asignado" -- ninguno de los dos existe como
+ * columna en `property`. No hay clave catastral en el schema migrado, y
+ * la propiedad NO tiene un FK directo a un dueño único: la relación real
+ * es histórica vía `user_quotas` (una propiedad puede tener distintos
+ * colonos a través del tiempo, ej. venta de la casa). Reasignar dueño es
+ * una operación distinta (crear una fila nueva en `user_quotas`), no una
+ * edición de `property` -- no se fabricó una columna nueva sin
+ * autorización explícita del Arquitecto (Mandamiento 9).
+ */
+function handle_property_update(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, numOficial, due_day, street_id, quota_id FROM property WHERE id = ? AND deleteAt IS NULL');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Propiedad no encontrada');
+    }
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $numOficial = $body['numOficial'] ?? null;
+    $streetId = $body['street_id'] ?? null;
+    $quotaId = $body['quota_id'] ?? null;
+    $dueDay = (int) ($body['due_day'] ?? $before['due_day']);
+
+    if ($numOficial === null || !is_numeric($numOficial)) {
+        Response::error(400, 'numOficial es obligatorio y debe ser numérico');
+    }
+    if ($dueDay < 1 || $dueDay > 31) {
+        Response::error(400, 'due_day debe estar entre 1 y 31');
+    }
+
+    $stmt = $pdo->prepare(
+        'UPDATE property SET numOficial = ?, street_id = ?, quota_id = ?, due_day = ? WHERE id = ?'
+    );
+    $stmt->execute([(int) $numOficial, $streetId !== null ? (int) $streetId : null, $quotaId !== null ? (int) $quotaId : null, $dueDay, $id]);
+
+    Audit::log('property', $id, 'update', (int) $claims['sub'], ['before' => $before, 'after' => [
+        'numOficial' => (int) $numOficial, 'street_id' => $streetId, 'quota_id' => $quotaId, 'due_day' => $dueDay,
+    ]]);
+
+    Response::json(200, ['status' => 'ok', 'id' => $id]);
+}
+
+/** GET /property/{id}/history — bitácora de cambios de una propiedad (admin/super_admin). */
+function handle_property_history(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    Response::json(200, ['status' => 'ok', 'items' => Audit::history('property', $id)]);
 }

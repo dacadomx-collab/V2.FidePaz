@@ -42,8 +42,18 @@ function handle_users_filter(): void
     $where = ['deleteAt IS NULL'];
     $params = [];
     if (!empty($_GET['name'])) {
-        $where[] = 'name LIKE :name';
+        $where[] = '(name LIKE :name OR email LIKE :name OR code LIKE :name)';
         $params['name'] = '%' . $_GET['name'] . '%';
+    }
+    // Filtro por código de propiedad/colono aparte (2026-08-07): búsqueda
+    // multicampo exacta, distinta del LIKE combinado de arriba.
+    if (!empty($_GET['code'])) {
+        $where[] = 'code LIKE :code';
+        $params['code'] = '%' . $_GET['code'] . '%';
+    }
+    if (!empty($_GET['role']) && in_array($_GET['role'], ['owner', 'admin', 'super_admin'], true)) {
+        $where[] = 'role = :role';
+        $params['role'] = $_GET['role'];
     }
 
     $pdo = Database::connection();
@@ -153,4 +163,88 @@ function handle_user_update_privacy(): void
     $stmt->execute([$userId]);
 
     Response::json(200, ['status' => 'ok']);
+}
+
+/**
+ * PUT /user/{id} — editar un colono (admin/super_admin).
+ * Campos reales editables: name, email, phone, cellphone, code, role.
+ * "Estatus" no es una columna aparte en `user` -- se maneja con
+ * `deleteAt` (soft-delete, ver DELETE abajo) y con `role` para permisos.
+ */
+function handle_user_update(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, name, email, phone, cellphone, code, role FROM `user` WHERE id = ? AND deleteAt IS NULL');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Propietario no encontrado');
+    }
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $name = trim((string) ($body['name'] ?? ''));
+    $email = trim((string) ($body['email'] ?? ''));
+    $phone = trim((string) ($body['phone'] ?? '')) ?: null;
+    $cellphone = trim((string) ($body['cellphone'] ?? '')) ?: null;
+    $code = trim((string) ($body['code'] ?? '')) ?: null;
+    $role = (string) ($body['role'] ?? $before['role']);
+
+    if ($name === '' || $email === '') {
+        Response::error(400, 'name y email son obligatorios');
+    }
+    if (!in_array($role, ['owner', 'admin', 'super_admin'], true)) {
+        Response::error(400, 'role inválido');
+    }
+
+    $stmt = $pdo->prepare(
+        'UPDATE `user` SET name = ?, email = ?, phone = ?, cellphone = ?, code = ?, role = ?, updateAt = NOW()
+         WHERE id = ?'
+    );
+    $stmt->execute([$name, $email, $phone, $cellphone, $code, $role, $id]);
+
+    Audit::log('user', $id, 'update', (int) $claims['sub'], ['before' => $before, 'after' => [
+        'name' => $name, 'email' => $email, 'phone' => $phone, 'cellphone' => $cellphone, 'code' => $code, 'role' => $role,
+    ]]);
+
+    Response::json(200, ['status' => 'ok', 'id' => $id]);
+}
+
+/**
+ * DELETE /user/{id} — baja de un colono (admin/super_admin).
+ * Soft-delete (`deleteAt = NOW()`), consistente con el resto de la API
+ * (`WHERE deleteAt IS NULL` en todas las queries activas) -- un borrado
+ * físico rompería la integridad histórica de `user_quotas` (pagos ya
+ * registrados a nombre de ese colono).
+ */
+function handle_user_delete(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, name, email FROM `user` WHERE id = ? AND deleteAt IS NULL');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Propietario no encontrado');
+    }
+
+    $stmt = $pdo->prepare('UPDATE `user` SET deleteAt = NOW() WHERE id = ?');
+    $stmt->execute([$id]);
+
+    Audit::log('user', $id, 'delete', (int) $claims['sub'], ['before' => $before]);
+
+    Response::json(200, ['status' => 'ok']);
+}
+
+/** GET /user/{id}/history — bitácora de cambios de un colono (admin/super_admin). */
+function handle_user_history(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    Response::json(200, ['status' => 'ok', 'items' => Audit::history('user', $id)]);
 }

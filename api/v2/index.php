@@ -85,6 +85,7 @@ try {
     require __DIR__ . '/core/Cors.php';
     require __DIR__ . '/core/RateLimit.php';
     require __DIR__ . '/core/Xlsx.php';
+    require __DIR__ . '/core/Audit.php';
     require __DIR__ . '/routes/auth.php';
     require __DIR__ . '/routes/properties.php';
     require __DIR__ . '/routes/quotas.php';
@@ -141,6 +142,10 @@ try {
         // forma exacta que exige el bundle (meta.totalPages), para no
         // provocar un TypeError al iterar sobre "meta.totalPages" undefined.
         handle_extras_all();
+    } elseif ($method === 'PUT' && preg_match('#^/property/(\d+)$#', $path, $m)) {
+        handle_property_update((int) $m[1]);
+    } elseif ($method === 'GET' && preg_match('#^/property/(\d+)/history$#', $path, $m)) {
+        handle_property_history((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/user-quotas') {
         handle_quotas_list();
     } elseif ($method === 'GET' && $path === '/quota') {
@@ -148,6 +153,10 @@ try {
         handle_quota_catalog_list();
     } elseif ($method === 'GET' && $path === '/quota/byterm') {
         handle_quota_byterm();
+    } elseif ($method === 'PUT' && preg_match('#^/quota/(\d+)$#', $path, $m)) {
+        handle_quota_update((int) $m[1]);
+    } elseif ($method === 'GET' && preg_match('#^/quota/(\d+)/history$#', $path, $m)) {
+        handle_quota_history((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
         // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();
@@ -179,6 +188,12 @@ try {
         handle_user_byterm();
     } elseif ($method === 'PUT' && $path === '/user/update-privacy') {
         handle_user_update_privacy();
+    } elseif ($method === 'PUT' && preg_match('#^/user/(\d+)$#', $path, $m)) {
+        handle_user_update((int) $m[1]);
+    } elseif ($method === 'DELETE' && preg_match('#^/user/(\d+)$#', $path, $m)) {
+        handle_user_delete((int) $m[1]);
+    } elseif ($method === 'GET' && preg_match('#^/user/(\d+)/history$#', $path, $m)) {
+        handle_user_history((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/user') {
         // ngOnInit() de la lista de Propietarios llama a esta ruta BARE en
         // la carga inicial -- mismo handler, mismo comportamiento sin filtro.

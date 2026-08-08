@@ -636,3 +636,55 @@ function handle_payment_get_file(int $quotaId): void
         . 'no se migró desde la infraestructura original de la V1.'
     );
 }
+
+/**
+ * PUT /quota/{id} — editar un tipo de cuota (admin/super_admin).
+ *
+ * Campos reales editables: name, cost. **Corrección de alcance:** la
+ * tabla `quota` no tiene columna `description` -- solo `id`, `name`,
+ * `cost` (ver 02_CODEX_Y_SCHEMA_MAESTRO.md). No se fabricó una columna
+ * nueva sin autorización explícita.
+ */
+function handle_quota_update(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, name, cost FROM quota WHERE id = ?');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Cuota no encontrada');
+    }
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $name = trim((string) ($body['name'] ?? ''));
+    $cost = $body['cost'] ?? null;
+
+    if ($name === '') {
+        Response::error(400, 'name es obligatorio');
+    }
+    if ($cost === null || !is_numeric($cost) || (float) $cost < 0) {
+        Response::error(400, 'cost es obligatorio y debe ser un número positivo');
+    }
+
+    $stmt = $pdo->prepare('UPDATE quota SET name = ?, cost = ? WHERE id = ?');
+    $stmt->execute([$name, (float) $cost, $id]);
+
+    Audit::log('quota', $id, 'update', (int) $claims['sub'], [
+        'before' => $before,
+        'after' => ['name' => $name, 'cost' => (float) $cost],
+    ]);
+
+    Response::json(200, ['status' => 'ok', 'id' => $id]);
+}
+
+/** GET /quota/{id}/history — bitácora de cambios de un tipo de cuota (admin/super_admin). */
+function handle_quota_history(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    Response::json(200, ['status' => 'ok', 'items' => Audit::history('quota', $id)]);
+}
