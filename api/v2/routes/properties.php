@@ -50,8 +50,14 @@ function handle_properties_filter(): void
     $params = [];
 
     if (!empty($_GET['name'])) {
-        $where[] = '(p.numOficial LIKE :name OR s.name LIKE :name)';
-        $params['name'] = '%' . $_GET['name'] . '%';
+        // 2 placeholders distintos, no ":name" repetido (mismo bug real
+        // encontrado y corregido en /user/filter, 2026-08-08 -- PDO con
+        // prepares reales no expande un nombre de parámetro repetido a
+        // cada aparición).
+        $where[] = '(p.numOficial LIKE :name1 OR s.name LIKE :name2)';
+        $term = '%' . $_GET['name'] . '%';
+        $params['name1'] = $term;
+        $params['name2'] = $term;
     }
     if (!empty($_GET['streets']) && is_array($_GET['streets'])) {
         $ids = array_map('intval', $_GET['streets']);

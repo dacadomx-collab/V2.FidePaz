@@ -42,8 +42,17 @@ function handle_users_filter(): void
     $where = ['deleteAt IS NULL'];
     $params = [];
     if (!empty($_GET['name'])) {
-        $where[] = '(name LIKE :name OR email LIKE :name OR code LIKE :name)';
-        $params['name'] = '%' . $_GET['name'] . '%';
+        // 3 placeholders distintos, no ":name" repetido 3 veces: PDO con
+        // prepares reales (PDO::ATTR_EMULATE_PREPARES=false) no expande un
+        // nombre de parámetro repetido a cada aparición -- solo la primera
+        // queda ligada, el resto revienta con "Invalid parameter number"
+        // (bug real encontrado 2026-08-08: /user/filter daba 500 en
+        // cualquier búsqueda por nombre).
+        $where[] = '(name LIKE :name1 OR email LIKE :name2 OR code LIKE :name3)';
+        $term = '%' . $_GET['name'] . '%';
+        $params['name1'] = $term;
+        $params['name2'] = $term;
+        $params['name3'] = $term;
     }
     // Filtro por código de propiedad/colono aparte (2026-08-07): búsqueda
     // multicampo exacta, distinta del LIKE combinado de arriba.
