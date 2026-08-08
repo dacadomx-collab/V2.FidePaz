@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1203 503">
+<rect width="1203" height="503" fill="#ebf5ff"/>
+<g transform="translate(541,131)">
+<rect x="0" y="0" width="120" height="150" rx="8" fill="#ffffff" stroke="#1c64f2" stroke-width="6"/>
+<rect x="0" y="0" width="70" height="45" rx="8" fill="#1c64f2"/>
+<text x="35" y="30" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">PDF</text>
+<line x1="18" y1="80" x2="102" y2="80" stroke="#c7d9f5" stroke-width="6" stroke-linecap="round"/>
+<line x1="18" y1="102" x2="102" y2="102" stroke="#c7d9f5" stroke-width="6" stroke-linecap="round"/>
+<line x1="18" y1="124" x2="75" y2="124" stroke="#c7d9f5" stroke-width="6" stroke-linecap="round"/>
+</g>
+<text x="601.5" y="360" font-family="Arial, sans-serif" font-size="28" fill="#174baa" text-anchor="middle">Documento oficial FidePaz</text>
+</svg>

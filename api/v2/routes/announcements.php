@@ -54,8 +54,14 @@ function handle_posts_list(): void
             'title' => ['rendered' => $r['title']],
             'content' => ['rendered' => $r['content']],
             'excerpt' => ['rendered' => $r['excerpt'] ?? ''],
+            // Estructura exacta que lee getImagePost() en el bundle:
+            // _embedded['wp:featuredmedia'][0].media_details.sizes.medium.source_url
+            // -- un nivel más profundo de lo que esta ruta mandaba antes
+            // (bug real encontrado 2026-08-07 decompilando la plantilla de
+            // tarjetas: toda imagen caía siempre al placeholder genérico
+            // dummyimage.com por la forma incorrecta, sin error visible).
             '_embedded' => $r['image_url']
-                ? ['wp:featuredmedia' => [['source_url' => $r['image_url']]]]
+                ? ['wp:featuredmedia' => [['media_details' => ['sizes' => ['medium' => ['source_url' => $r['image_url']]]]]]]
                 : ['wp:featuredmedia' => []],
         ];
     }, $rows);
