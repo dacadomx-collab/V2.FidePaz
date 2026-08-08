@@ -104,3 +104,21 @@ input:-webkit-autofill {
     animation-name: onAutoFillStart;
     animation-duration: .01s;
 }
+
+/* Botón de descarga real dentro del contenido de Comunicados/Informes
+   (announcements.content) -- agregado 2026-08-07 para no usar estilos
+   inline en el HTML generado por la API. */
+.btn-download-doc {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.6rem 1.2rem;
+    background: #1c64f2;
+    color: #fff;
+    border-radius: 0.4rem;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.btn-download-doc:hover {
+    background: #174baa;
+}
