@@ -806,3 +806,48 @@ function handle_quota_history(int $id): void
 
     Response::json(200, ['status' => 'ok', 'items' => Audit::history('quota', $id)]);
 }
+
+/**
+ * PUT /payment/pay/{id} — marcar una cuota como pagada (admin/super_admin).
+ *
+ * Ruta REAL del botón "Editar" de la pantalla "Pagos"
+ * (`app-list-payments`, chunk 104 — `updatePaymentById({file:...}, id)`).
+ * El formulario real ata un `<input type="file">` directo a un
+ * `FormGroup` y lo manda con `Content-Type: application/json` -- eso no
+ * serializa un archivo binario real (un `File` de un input HTML no se
+ * convierte a JSON útil así, es un patrón roto en el propio bundle
+ * compilado, no algo que este endpoint pueda arreglar del lado del
+ * servidor). Este endpoint hace lo que SÍ puede hacer con la evidencia
+ * real: marca la cuota como pagada (status=2, pay_date=NOW()) y guarda
+ * `receipt` solo si llega como texto plano (nombre/ruta), nunca finge
+ * procesar un archivo que no puede recibir correctamente.
+ */
+function handle_payment_pay(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, status, amount, receipt FROM user_quotas WHERE id = ?');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Cuota no encontrada');
+    }
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $receipt = $before['receipt'];
+    if (isset($body['file']) && is_string($body['file']) && trim($body['file']) !== '') {
+        $receipt = trim($body['file']);
+    }
+
+    $pdo->prepare('UPDATE user_quotas SET status = 2, pay_date = NOW(), receipt = ? WHERE id = ?')
+        ->execute([$receipt, $id]);
+
+    Audit::log('user_quotas', $id, 'update', (int) $claims['sub'], [
+        'before' => $before,
+        'after' => ['status' => 2, 'receipt' => $receipt],
+    ]);
+
+    Response::json(200, ['status' => 'ok', 'id' => $id]);
+}

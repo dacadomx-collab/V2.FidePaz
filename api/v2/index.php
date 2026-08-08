@@ -191,6 +191,13 @@ try {
         // 104) -- lista plana de pagos individuales, distinta de
         // /payment/list-owners (que agrupa por propietario).
         handle_payments_list();
+    } elseif ($method === 'GET' && $path === '/payment/filter') {
+        // Ruta REAL del botón "Buscar" de Pagos (filterPayments) -- nunca
+        // existía, la búsqueda de Pagos jamás había funcionado. Mismos
+        // parámetros que /payment bare, mismo handler.
+        handle_payments_list();
+    } elseif ($method === 'PUT' && preg_match('#^/payment/pay/(\d+)$#', $path, $m)) {
+        handle_payment_pay((int) $m[1]);
     } elseif ($method === 'GET' && $path === '/users') {
         handle_users_list();
     } elseif ($method === 'GET' && $path === '/user/filter') {
