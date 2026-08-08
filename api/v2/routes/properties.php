@@ -222,16 +222,23 @@ function handle_extras_all(): void
 /**
  * PUT /property/{id} — editar una propiedad (admin/super_admin).
  *
- * Campos reales editables: numOficial, street_id, quota_id, due_day.
- * **Corrección de alcance:** la directiva pedía también editar "clave
- * catastral" y "propietario asignado" -- ninguno de los dos existe como
- * columna en `property`. No hay clave catastral en el schema migrado, y
- * la propiedad NO tiene un FK directo a un dueño único: la relación real
- * es histórica vía `user_quotas` (una propiedad puede tener distintos
- * colonos a través del tiempo, ej. venta de la casa). Reasignar dueño es
- * una operación distinta (crear una fila nueva en `user_quotas`), no una
- * edición de `property` -- no se fabricó una columna nueva sin
- * autorización explícita del Arquitecto (Mandamiento 9).
+ * Ruta y payload corregidos 2026-08-08: el formulario real
+ * (`app-edit-property.accept()`) manda `{numOficial,streetId,quotaId,
+ * ownerId,day}` (camelCase) a `PUT /property/update/{id}` -- NO
+ * `{numOficial,street_id,quota_id,due_day}` a `/property/{id}` como se
+ * había asumido sin verificar contra el bundle real.
+ *
+ * **`ownerId` en el payload:** el formulario SÍ manda un `ownerId`, pero
+ * `property` no tiene esa columna (confirmado también contra el schema
+ * original de la V1, `mercagee_colonoscore.sql` — nunca existió ahí
+ * tampoco). La relación real de dueño es histórica vía `user_quotas`, y
+ * reasignar el dueño de una propiedad existente (que ya tiene cuotas
+ * cobradas a nombre de alguien) es una decisión de negocio con
+ * implicaciones que no se pueden inferir solas -- este endpoint acepta el
+ * campo (no lo rechaza) pero NO reasigna nada automáticamente; se
+ * documenta en la respuesta. Sí se usa en `/property/create` (ver abajo),
+ * donde SÍ tiene sentido: una propiedad nueva necesita su primera cuota
+ * asignada a alguien.
  */
 function handle_property_update(int $id): void
 {
@@ -247,21 +254,19 @@ function handle_property_update(int $id): void
     }
 
     // array_key_exists (no "??"): un PUT parcial que simplemente OMITE
-    // street_id/quota_id debe conservar el valor actual, no borrarlo -- un
-    // "??" aquí confundía "campo no enviado" con "campo enviado como null"
-    // y vaciaba ambas columnas en cualquier PUT que no las incluyera
-    // explícitamente (encontrado durante pruebas reales 2026-08-07).
+    // streetId/quotaId debe conservar el valor actual, no borrarlo (bug
+    // real encontrado y corregido 2026-08-07).
     $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
     $numOficial = $body['numOficial'] ?? null;
-    $streetId = array_key_exists('street_id', $body) ? $body['street_id'] : $before['street_id'];
-    $quotaId = array_key_exists('quota_id', $body) ? $body['quota_id'] : $before['quota_id'];
-    $dueDay = (int) ($body['due_day'] ?? $before['due_day']);
+    $streetId = array_key_exists('streetId', $body) ? $body['streetId'] : $before['street_id'];
+    $quotaId = array_key_exists('quotaId', $body) ? $body['quotaId'] : $before['quota_id'];
+    $dueDay = (int) ($body['day'] ?? $before['due_day']);
 
     if ($numOficial === null || !is_numeric($numOficial)) {
         Response::error(400, 'numOficial es obligatorio y debe ser numérico');
     }
     if ($dueDay < 1 || $dueDay > 31) {
-        Response::error(400, 'due_day debe estar entre 1 y 31');
+        Response::error(400, 'day debe estar entre 1 y 31');
     }
 
     $stmt = $pdo->prepare(
@@ -274,6 +279,89 @@ function handle_property_update(int $id): void
     ]]);
 
     Response::json(200, ['status' => 'ok', 'id' => $id]);
+}
+
+/**
+ * POST /property/create — crear propiedad nueva (admin/super_admin).
+ * Payload real: {numOficial,streetId,quotaId,ownerId,day}. `ownerId` aquí
+ * SÍ se usa: crea la primera fila de `user_quotas` (status=1 pendiente,
+ * vencimiento hoy, monto = costo de la cuota asignada) para establecer la
+ * relación real propiedad↔colono desde el día uno.
+ */
+function handle_property_create(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $numOficial = $body['numOficial'] ?? null;
+    $streetId = $body['streetId'] ?? null;
+    $quotaId = $body['quotaId'] ?? null;
+    $ownerId = $body['ownerId'] ?? null;
+    $dueDay = (int) ($body['day'] ?? 1);
+
+    if ($numOficial === null || !is_numeric($numOficial)) {
+        Response::error(400, 'numOficial es obligatorio y debe ser numérico');
+    }
+    if ($dueDay < 1 || $dueDay > 31) {
+        Response::error(400, 'day debe estar entre 1 y 31');
+    }
+
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('INSERT INTO property (numOficial, street_id, quota_id, due_day) VALUES (?, ?, ?, ?)');
+        $stmt->execute([(int) $numOficial, $streetId !== null ? (int) $streetId : null, $quotaId !== null ? (int) $quotaId : null, $dueDay]);
+        $id = (int) $pdo->lastInsertId();
+
+        if ($ownerId !== null && $quotaId !== null) {
+            $quotaStmt = $pdo->prepare('SELECT cost FROM quota WHERE id = ?');
+            $quotaStmt->execute([(int) $quotaId]);
+            $cost = $quotaStmt->fetchColumn();
+            if ($cost !== false) {
+                $pdo->prepare(
+                    'INSERT INTO user_quotas (due_date, status, amount, user_id, property_id) VALUES (CURDATE(), 1, ?, ?, ?)'
+                )->execute([(float) $cost, (int) $ownerId, $id]);
+            }
+        }
+
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    Audit::log('property', $id, 'create', (int) $claims['sub'], [
+        'after' => ['numOficial' => (int) $numOficial, 'street_id' => $streetId, 'quota_id' => $quotaId, 'owner_id' => $ownerId, 'due_day' => $dueDay],
+    ]);
+
+    Response::json(201, ['status' => 'ok', 'id' => $id]);
+}
+
+/**
+ * DELETE /property/delete/{id} — baja de una propiedad (admin/super_admin).
+ * Soft-delete (`deleteAt = NOW()`), consistente con el resto de la API —
+ * un borrado físico rompería la integridad histórica de `user_quotas`
+ * (pagos ya registrados a esa propiedad).
+ */
+function handle_property_delete(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, numOficial FROM property WHERE id = ? AND deleteAt IS NULL');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Propiedad no encontrada');
+    }
+
+    $pdo->prepare('UPDATE property SET deleteAt = NOW() WHERE id = ?')->execute([$id]);
+
+    Audit::log('property', $id, 'delete', (int) $claims['sub'], ['before' => $before]);
+
+    Response::json(200, ['status' => 'ok']);
 }
 
 /** GET /property/{id}/history — bitácora de cambios de una propiedad (admin/super_admin). */

@@ -638,12 +638,130 @@ function handle_payment_get_file(int $quotaId): void
 }
 
 /**
- * PUT /quota/{id} — editar un tipo de cuota (admin/super_admin).
+ * GET /quota/filter?page=&name=&order=
  *
- * Campos reales editables: name, cost. **Corrección de alcance:** la
- * tabla `quota` no tiene columna `description` -- solo `id`, `name`,
- * `cost` (ver 02_CODEX_Y_SCHEMA_MAESTRO.md). No se fabricó una columna
- * nueva sin autorización explícita.
+ * Hallazgo 2026-08-08: esta es la ruta REAL que llama el botón "Buscar"
+ * de la pantalla "Cuotas" (`filterQuotasAndOrder`) — `GET /quota` (bare)
+ * nunca tuvo búsqueda, así que la barra de búsqueda de Cuotas jamás
+ * funcionó hasta ahora. Confirmado decompilando `main.<hash>.js`.
+ */
+function handle_quota_filter(): void
+{
+    Auth::requireUser();
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+    $order = strtoupper((string) ($_GET['order'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
+
+    $where = ['1=1'];
+    $params = [];
+    if (!empty($_GET['name'])) {
+        $where[] = 'name LIKE :name';
+        $params['name'] = '%' . $_GET['name'] . '%';
+    }
+
+    $pdo = Database::connection();
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM quota WHERE ' . implode(' AND ', $where));
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $stmt = $pdo->prepare(
+        "SELECT id, name, cost FROM quota WHERE " . implode(' AND ', $where) . "
+         ORDER BY name {$order}
+         LIMIT :limit OFFSET :offset"
+    );
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = array_map(static function (array $r): array {
+        $r['cost'] = (float) $r['cost'];
+        return $r;
+    }, $stmt->fetchAll());
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $rows,
+        'meta' => ['total' => $total, 'totalPages' => (int) ceil($total / $pageSize), 'page' => $page],
+    ]);
+}
+
+/**
+ * POST /quota/create — crear tipo de cuota (admin/super_admin).
+ * Payload real del formulario: { name, cost }.
+ */
+function handle_quota_create(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $name = trim((string) ($body['name'] ?? ''));
+    $cost = $body['cost'] ?? null;
+
+    if ($name === '') {
+        Response::error(400, 'name es obligatorio');
+    }
+    if ($cost === null || !is_numeric($cost) || (float) $cost < 0) {
+        Response::error(400, 'cost es obligatorio y debe ser un número positivo');
+    }
+
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare('INSERT INTO quota (name, cost) VALUES (?, ?)');
+    $stmt->execute([$name, (float) $cost]);
+    $id = (int) $pdo->lastInsertId();
+
+    Audit::log('quota', $id, 'create', (int) $claims['sub'], ['after' => ['name' => $name, 'cost' => (float) $cost]]);
+
+    Response::json(201, ['status' => 'ok', 'id' => $id]);
+}
+
+/**
+ * DELETE /quota/delete/{id} — borrar tipo de cuota (admin/super_admin).
+ * `quota` no tiene `deleteAt` (no es una entidad con soft-delete en el
+ * schema real) -- borrado físico, pero solo si ninguna `property` lo usa
+ * actualmente (evita romper la FK `fk_property_quota` en producción con
+ * un error 500 feo; se valida antes y se responde un 409 claro).
+ */
+function handle_quota_delete(int $id): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, name, cost FROM quota WHERE id = ?');
+    $existing->execute([$id]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Cuota no encontrada');
+    }
+
+    $inUse = $pdo->prepare('SELECT COUNT(*) FROM property WHERE quota_id = ? AND deleteAt IS NULL');
+    $inUse->execute([$id]);
+    if ((int) $inUse->fetchColumn() > 0) {
+        Response::error(409, 'No se puede eliminar: hay propiedades usando esta cuota');
+    }
+
+    $pdo->prepare('DELETE FROM quota WHERE id = ?')->execute([$id]);
+
+    Audit::log('quota', $id, 'delete', (int) $claims['sub'], ['before' => $before]);
+
+    Response::json(200, ['status' => 'ok']);
+}
+
+/**
+ * PUT /quota/update/{id} — editar un tipo de cuota (admin/super_admin).
+ *
+ * Ruta corregida 2026-08-08: el botón "Editar" real llama a
+ * `PUT /quota/update/{id}`, no `/quota/{id}` — confirmado decompilando
+ * `updateQuota()` en `main.<hash>.js`. Campos reales editables: name,
+ * cost. **Corrección de alcance:** la tabla `quota` no tiene columna
+ * `description` -- solo `id`, `name`, `cost` (ver
+ * 02_CODEX_Y_SCHEMA_MAESTRO.md). No se fabricó una columna nueva sin
+ * autorización explícita.
  */
 function handle_quota_update(int $id): void
 {

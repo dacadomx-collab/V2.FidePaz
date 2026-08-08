@@ -171,48 +171,118 @@ function handle_user_update_privacy(): void
  * "Estatus" no es una columna aparte en `user` -- se maneja con
  * `deleteAt` (soft-delete, ver DELETE abajo) y con `role` para permisos.
  */
+/**
+ * PUT /user/update/{id} — editar colono (admin/super_admin).
+ *
+ * Ruta y payload corregidos 2026-08-08: el formulario real de edición
+ * (`app-edit-users`) manda `{rfc,name,email,phone,cellphone,contactPhone,
+ * contactName,password?,c_password?}` a `PUT /user/update/{id}` — NO
+ * `{name,email,phone,cellphone,code,role}` a `/user/{id}` como se había
+ * asumido antes sin verificar. `code` y `role` no son editables desde
+ * este formulario (no aparecen en él) — se conservan sin tocar.
+ * `password` es opcional: si se manda, se re-hashea con bcrypt; si no,
+ * el password actual no cambia.
+ */
 function handle_user_update(int $id): void
 {
     $claims = Auth::requireUser();
     Auth::requireRole($claims, ['admin', 'super_admin']);
 
     $pdo = Database::connection();
-    $existing = $pdo->prepare('SELECT id, name, email, phone, cellphone, code, role FROM `user` WHERE id = ? AND deleteAt IS NULL');
+    $existing = $pdo->prepare(
+        'SELECT id, name, email, phone, cellphone, rfc, contactName, contactPhone FROM `user` WHERE id = ? AND deleteAt IS NULL'
+    );
     $existing->execute([$id]);
     $before = $existing->fetch();
     if ($before === false) {
         Response::error(404, 'Propietario no encontrado');
     }
 
-    // array_key_exists (no "??"): un PUT parcial que omite phone/cellphone/
-    // code debe conservar el valor actual, no borrarlo (mismo bug real
-    // encontrado y corregido en handle_property_update, 2026-08-07).
     $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
     $name = trim((string) ($body['name'] ?? ''));
     $email = trim((string) ($body['email'] ?? ''));
     $phone = array_key_exists('phone', $body) ? (trim((string) $body['phone']) ?: null) : $before['phone'];
     $cellphone = array_key_exists('cellphone', $body) ? (trim((string) $body['cellphone']) ?: null) : $before['cellphone'];
-    $code = array_key_exists('code', $body) ? (trim((string) $body['code']) ?: null) : $before['code'];
-    $role = (string) ($body['role'] ?? $before['role']);
+    $rfc = array_key_exists('rfc', $body) ? (trim((string) $body['rfc']) ?: null) : $before['rfc'];
+    $contactName = array_key_exists('contactName', $body) ? (trim((string) $body['contactName']) ?: null) : $before['contactName'];
+    $contactPhone = array_key_exists('contactPhone', $body) ? (trim((string) $body['contactPhone']) ?: null) : $before['contactPhone'];
+    $password = trim((string) ($body['password'] ?? ''));
 
     if ($name === '' || $email === '') {
         Response::error(400, 'name y email son obligatorios');
     }
-    if (!in_array($role, ['owner', 'admin', 'super_admin'], true)) {
-        Response::error(400, 'role inválido');
+    if ($password !== '' && strlen($password) < 6) {
+        Response::error(400, 'password debe tener al menos 6 caracteres');
     }
 
-    $stmt = $pdo->prepare(
-        'UPDATE `user` SET name = ?, email = ?, phone = ?, cellphone = ?, code = ?, role = ?, updateAt = NOW()
-         WHERE id = ?'
-    );
-    $stmt->execute([$name, $email, $phone, $cellphone, $code, $role, $id]);
+    if ($password !== '') {
+        $stmt = $pdo->prepare(
+            'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, password=?, updateAt=NOW()
+             WHERE id = ?'
+        );
+        $stmt->execute([$name, $email, $phone, $cellphone, $rfc, $contactName, $contactPhone, password_hash($password, PASSWORD_BCRYPT), $id]);
+    } else {
+        $stmt = $pdo->prepare(
+            'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, updateAt=NOW()
+             WHERE id = ?'
+        );
+        $stmt->execute([$name, $email, $phone, $cellphone, $rfc, $contactName, $contactPhone, $id]);
+    }
 
     Audit::log('user', $id, 'update', (int) $claims['sub'], ['before' => $before, 'after' => [
-        'name' => $name, 'email' => $email, 'phone' => $phone, 'cellphone' => $cellphone, 'code' => $code, 'role' => $role,
+        'name' => $name, 'email' => $email, 'phone' => $phone, 'cellphone' => $cellphone,
+        'rfc' => $rfc, 'contactName' => $contactName, 'contactPhone' => $contactPhone,
+        'passwordChanged' => $password !== '',
     ]]);
 
     Response::json(200, ['status' => 'ok', 'id' => $id]);
+}
+
+/**
+ * POST /user/create — crear colono (admin/super_admin).
+ * Payload real del formulario: {rfc,name,email,password,phone,cellphone,
+ * contactPhone,contactName} (c_password se valida solo en el cliente).
+ * Rol por defecto: `owner` (el formulario de creación no pide rol).
+ */
+function handle_user_create(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $name = trim((string) ($body['name'] ?? ''));
+    $email = trim((string) ($body['email'] ?? ''));
+    $password = (string) ($body['password'] ?? '');
+    $phone = trim((string) ($body['phone'] ?? '')) ?: null;
+    $cellphone = trim((string) ($body['cellphone'] ?? '')) ?: null;
+    $rfc = trim((string) ($body['rfc'] ?? '')) ?: null;
+    $contactName = trim((string) ($body['contactName'] ?? '')) ?: null;
+    $contactPhone = trim((string) ($body['contactPhone'] ?? '')) ?: null;
+
+    if ($name === '' || $email === '') {
+        Response::error(400, 'name y email son obligatorios');
+    }
+    if (strlen($password) < 6) {
+        Response::error(400, 'password debe tener al menos 6 caracteres');
+    }
+
+    $pdo = Database::connection();
+    $dup = $pdo->prepare('SELECT id FROM `user` WHERE email = ? AND deleteAt IS NULL');
+    $dup->execute([$email]);
+    if ($dup->fetch() !== false) {
+        Response::error(400, 'Ya existe un colono con ese correo');
+    }
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO `user` (name, email, password, phone, cellphone, rfc, contactName, contactPhone, role, createAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+    );
+    $stmt->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT), $phone, $cellphone, $rfc, $contactName, $contactPhone, 'owner']);
+    $id = (int) $pdo->lastInsertId();
+
+    Audit::log('user', $id, 'create', (int) $claims['sub'], ['after' => ['name' => $name, 'email' => $email, 'role' => 'owner']]);
+
+    Response::json(201, ['status' => 'ok', 'id' => $id]);
 }
 
 /**
