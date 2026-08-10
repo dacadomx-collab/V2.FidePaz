@@ -31,6 +31,26 @@
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 	# ---------------------------------------------------------------
+	# Fase 8 (2026-08-10): retiro del punto de entrada del panel Angular
+	# heredado de V1 -- /panel/ (HTML/CSS/JS propio, sin build, verificado
+	# en vivo módulo por módulo) es ahora el panel real. Va DESPUÉS del
+	# forzado de HTTPS de arriba a propósito (si fuera antes, un request
+	# http:// se redirigiría a /panel/login.html todavía en http, sin
+	# pasar por el forzado a https). Solo se redirige la RAÍZ exacta
+	# (/administrator/ o /administrator/index.html), no cualquier ruta
+	# profunda -- un bookmark viejo tipo /administrator/home/users/index
+	# sigue sirviendo el bundle Angular (fallback SPA de abajo intacto)
+	# como red de seguridad reversible mientras se confirma el cambio con
+	# uso real. 302 (no 301) a propósito: reversible sin esperar caché de
+	# navegador/DNS si hiciera falta revertir. Los archivos del bundle NO
+	# se borraron del servidor (este pipeline de FTP no elimina remotos)
+	# -- quedan como "código muerto" alcanzable solo por URL profunda
+	# directa, no como punto de entrada real.
+	RewriteCond %{REQUEST_URI} ^/administrator/?$ [OR]
+	RewriteCond %{REQUEST_URI} ^/administrator/index\.html$
+	RewriteRule ^ /panel/login.html [R=302,L]
+
+	# ---------------------------------------------------------------
 	# API v2.0: /api/* vive físicamente en administrator/api/ (mismo
 	# origen que el frontend -> cero CORS cross-origin, cero dependencia
 	# de red externa/Cloud Run). Aquí solo se exime del fallback SPA;
