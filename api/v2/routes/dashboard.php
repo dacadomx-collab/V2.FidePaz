@@ -27,6 +27,10 @@ function handle_dashboard_summary(): void
            AND pay_date < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')"
     )->fetchColumn();
 
+    $totalPagadoHistorico = (float) $pdo->query(
+        'SELECT COALESCE(SUM(amount), 0) FROM user_quotas WHERE status = 2'
+    )->fetchColumn();
+
     $cuotasVencidas = (int) $pdo->query(
         'SELECT COUNT(*) FROM user_quotas WHERE status = 1 AND due_date < CURDATE()'
     )->fetchColumn();
@@ -50,6 +54,7 @@ function handle_dashboard_summary(): void
         'data' => [
             'totalPendiente' => round($totalPendiente, 2),
             'totalPagadoMesActual' => round($totalPagadoMes, 2),
+            'totalPagadoHistorico' => round($totalPagadoHistorico, 2),
             'cuotasVencidas' => $cuotasVencidas,
             'colonosMorosos' => $colonosMorosos,
             'cuotasDelMes' => $cuotasDelMes,

@@ -413,3 +413,42 @@
     pointer-events: auto;
     transform: translateY(0);
 }
+
+/* ── ESQUELETO DE CARGA (panel/index.html) ────────────────────────────────
+   Reemplaza spinners infinitos: mientras GET /dashboard/summary responde,
+   cada tarjeta muestra una barra "shimmer" del tamaño real del número que
+   va a aparecer, en vez de un placeholder genérico. ─────────────────────── */
+.skeleton-bar {
+    display: inline-block;
+    height: 2rem;
+    width: 60%;
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, var(--color-border) 25%, var(--color-bg-alt) 50%, var(--color-border) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-bar.skeleton-sm {
+    height: 1.1rem;
+    width: 40%;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.dashboard-subvalue {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.dashboard-error {
+    text-align: center;
+    padding: var(--space-lg);
+    color: var(--color-text-muted);
+}

@@ -85,10 +85,15 @@
 </div>
 
 <script type="module">
-    import { api, setSession, getToken, panelRoot } from './js/api.js';
+    import { api, setSession, getToken, getActiveUser, panelRoot } from './js/api.js';
+
+    function destinationFor(role) {
+        return role === 'owner' ? 'mi-cuenta.html' : 'index.html';
+    }
 
     if (getToken()) {
-        window.location.href = panelRoot() + 'propietarios.html';
+        const activeUser = getActiveUser();
+        window.location.href = panelRoot() + destinationFor(activeUser ? activeUser.role : null);
     }
 
     const form = document.getElementById('login-form');
@@ -107,9 +112,7 @@
                 password: document.getElementById('password').value,
             });
             setSession(data.token, data.user);
-
-            const destination = data.user.role === 'owner' ? 'mi-cuenta.html' : 'propietarios.html';
-            window.location.href = panelRoot() + destination;
+            window.location.href = panelRoot() + destinationFor(data.user.role);
         } catch (err) {
             errorEl.textContent = err.message || 'No se pudo iniciar sesión.';
             errorEl.classList.add('visible');

@@ -94,6 +94,7 @@ try {
     require __DIR__ . '/routes/contact.php';
     require __DIR__ . '/routes/announcements.php';
     require __DIR__ . '/routes/dashboard.php';
+    require __DIR__ . '/routes/admin.php';
 } catch (\Throwable $e) {
     error_log('[fidepaz_v2] Fallo cargando módulos internos: ' . $e->getMessage());
     fidepaz_json_fail(500, 'Error interno del servidor (carga de módulos)', $e);
@@ -175,6 +176,8 @@ try {
         handle_quota_generate_period();
     } elseif ($method === 'GET' && $path === '/dashboard/summary') {
         handle_dashboard_summary();
+    } elseif ($method === 'POST' && $path === '/admin/test-email') {
+        handle_admin_test_email();
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
         // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inicio — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('inicio', 'Inicio');
+
+    // 4 tarjetas fijas con esqueleto de carga -- se reemplazan por los
+    // valores reales cuando responde GET /dashboard/summary, sin spinners.
+    content.innerHTML = `
+        <div class="arf-grid" id="kpi-grid">
+            <div class="card metric-card card-success arf-col-3">
+                <p class="metric-value"><span class="skeleton-bar"></span></p>
+                <p class="metric-label">Total recaudado (histórico)</p>
+                <div class="dashboard-subvalue"><span class="skeleton-bar skeleton-sm"></span></div>
+            </div>
+            <div class="card metric-card card-danger arf-col-3">
+                <p class="metric-value"><span class="skeleton-bar"></span></p>
+                <p class="metric-label">Total pendiente</p>
+            </div>
+            <div class="card metric-card card-warning arf-col-3">
+                <p class="metric-value"><span class="skeleton-bar"></span></p>
+                <p class="metric-label">Cuotas vencidas</p>
+                <div class="dashboard-subvalue"><span class="skeleton-bar skeleton-sm"></span> colonos morosos</div>
+            </div>
+            <div class="card metric-card card-info arf-col-3">
+                <p class="metric-value"><span class="skeleton-bar"></span></p>
+                <p class="metric-label">Propiedades indexadas</p>
+            </div>
+        </div>
+    `;
+
+    function fmtMoney(n) {
+        return '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    api.get('/dashboard/summary').then((res) => {
+        const d = res.data;
+        const grid = document.getElementById('kpi-grid');
+        grid.innerHTML = `
+            <div class="card metric-card card-success arf-col-3">
+                <p class="metric-value">${fmtMoney(d.totalPagadoHistorico)}</p>
+                <p class="metric-label">Total recaudado (histórico)</p>
+                <div class="dashboard-subvalue">${fmtMoney(d.totalPagadoMesActual)} este mes</div>
+            </div>
+            <div class="card metric-card card-danger arf-col-3">
+                <p class="metric-value">${fmtMoney(d.totalPendiente)}</p>
+                <p class="metric-label">Total pendiente</p>
+            </div>
+            <div class="card metric-card card-warning arf-col-3">
+                <p class="metric-value">${Number(d.cuotasVencidas).toLocaleString('es-MX')}</p>
+                <p class="metric-label">Cuotas vencidas</p>
+                <div class="dashboard-subvalue">${Number(d.colonosMorosos).toLocaleString('es-MX')} colonos morosos</div>
+            </div>
+            <div class="card metric-card card-info arf-col-3">
+                <p class="metric-value">${Number(d.propiedadesActivas).toLocaleString('es-MX')}</p>
+                <p class="metric-label">Propiedades indexadas</p>
+            </div>
+        `;
+    }).catch((err) => {
+        document.getElementById('kpi-grid').innerHTML = `
+            <div class="dashboard-error" style="width:100%;">
+                No se pudieron cargar los indicadores: ${err.message || 'error desconocido'}.
+                <button type="button" class="btn btn-outline" onclick="location.reload()">Reintentar</button>
+            </div>
+        `;
+    });
+</script>
+</body>
+</html>

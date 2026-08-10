@@ -8,6 +8,7 @@ import { getActiveUser, clearSession, goToLogin, panelRoot } from './api.js';
 const THEME_KEY = 'fidepaz_admin_theme';
 
 const ADMIN_NAV_ITEMS = [
+    { id: 'inicio', label: 'Inicio', href: 'index.html', icon: '🏁' },
     { id: 'propietarios', label: 'Propietarios', href: 'propietarios.html', icon: '👤' },
     { id: 'propiedades', label: 'Propiedades', href: 'propiedades.html', icon: '🏠' },
     { id: 'cuotas', label: 'Cuotas', href: 'cuotas.html', icon: '💳' },

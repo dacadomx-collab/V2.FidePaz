@@ -22,6 +22,10 @@
     --color-border: #e5e7eb;
     --color-danger: #d32f2f;
     --color-danger-soft: #fdecea;
+    --color-success: #0e9f6e;
+    --color-success-soft: #def7ec;
+    --color-warning: #d97706;
+    --color-warning-soft: #fef3c7;
     --space-xs: 0.5rem;
     --space-sm: 1rem;
     --space-md: 1.5rem;
@@ -42,6 +46,10 @@
         --color-border: #1e293b;
         --color-danger: #f87171;
         --color-danger-soft: #3b1a1a;
+        --color-success: #34d399;
+        --color-success-soft: #0f2e22;
+        --color-warning: #fbbf24;
+        --color-warning-soft: #3a2a0a;
     }
 }
 
@@ -136,6 +144,30 @@ video {
 
 .card-danger {
     border-top: 4px solid var(--color-danger);
+}
+
+.card-success {
+    border-top: 4px solid var(--color-success);
+}
+
+.card-warning {
+    border-top: 4px solid var(--color-warning);
+}
+
+.card-info {
+    border-top: 4px solid var(--color-primary);
+}
+
+.card-danger .metric-value {
+    color: var(--color-danger);
+}
+
+.card-success .metric-value {
+    color: var(--color-success);
+}
+
+.card-warning .metric-value {
+    color: var(--color-warning);
 }
 
 .code-block {
