@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Propietarios — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { createDataTable } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('propietarios', 'Propietarios');
+
+    content.innerHTML = `
+        <div style="margin-bottom:1rem;">
+            <button type="button" class="btn" id="btn-nuevo">+ Nuevo propietario</button>
+        </div>
+        <div id="table-mount"></div>
+        <div id="modal-mount"></div>
+    `;
+
+    const tableMount = document.getElementById('table-mount');
+    const modalMount = document.getElementById('modal-mount');
+
+    // /user/filter no trae rfc/contactName/contactPhone y no existe un
+    // GET /user/{id} real -- se guarda en memoria lo último cargado en la
+    // tabla para prellenar el formulario de edición sin inventar un
+    // endpoint que no existe.
+    const rowsById = new Map();
+
+    const table = createDataTable(tableMount, {
+        searchPlaceholder: 'Buscar por nombre, correo o código…',
+        emptyMessage: 'No hay propietarios registrados con ese criterio.',
+        defaultSortKey: 'name',
+        columns: [
+            { key: 'name', label: 'Nombre', sortable: true },
+            { key: 'email', label: 'Correo', sortable: true },
+            { key: 'code', label: 'Código', sortable: true },
+            { key: 'phone', label: 'Teléfono' },
+            { key: 'role', label: 'Rol', sortable: true },
+        ],
+        renderActions: (item) => `
+            <button type="button" data-action="edit" title="Editar">✏️</button>
+            <button type="button" data-action="delete" title="Eliminar">🗑️</button>
+        `,
+        fetchPage: async ({ search, sortKey, sortDir, page }) => {
+            const data = await api.get('/user/filter', {
+                name: search,
+                sortKey,
+                sortDir,
+                page,
+            });
+            data.items.forEach((item) => rowsById.set(String(item.id), item));
+            return { items: data.items, meta: data.meta };
+        },
+    });
+
+    tableMount.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action]');
+        if (!btn) { return; }
+        const row = btn.closest('tr');
+        const id = row.dataset.id;
+        if (btn.dataset.action === 'edit') { openForm(id); }
+        if (btn.dataset.action === 'delete') { confirmDelete(id); }
+    });
+
+    document.getElementById('btn-nuevo').addEventListener('click', () => openForm(null));
+
+    function closeModal() {
+        modalMount.innerHTML = '';
+    }
+
+    function openForm(id) {
+        let user = { rfc: '', name: '', email: '', phone: '', cellphone: '', contactName: '', contactPhone: '' };
+        if (id) {
+            const found = rowsById.get(String(id));
+            if (found) { user = { ...user, ...found }; }
+        }
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>${id ? 'Editar propietario' : 'Nuevo propietario'}</h2>
+                    <form id="user-form">
+                        <div class="panel-form-field">
+                            <label for="f-name">Nombre completo</label>
+                            <input type="text" id="f-name" required value="${user.name || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-email">Correo</label>
+                            <input type="email" id="f-email" required value="${user.email || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-rfc">RFC</label>
+                            <input type="text" id="f-rfc" value="${user.rfc || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-phone">Teléfono</label>
+                            <input type="text" id="f-phone" value="${user.phone || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-cellphone">Celular</label>
+                            <input type="text" id="f-cellphone" value="${user.cellphone || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-contact-name">Contacto (nombre)</label>
+                            <input type="text" id="f-contact-name" value="${user.contactName || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-contact-phone">Contacto (teléfono)</label>
+                            <input type="text" id="f-contact-phone" value="${user.contactPhone || ''}">
+                        </div>
+                        ${!id ? `
+                        <div class="panel-form-field">
+                            <label for="f-password">Contraseña inicial</label>
+                            <input type="password" id="f-password" required minlength="8">
+                        </div>` : ''}
+                        <div class="panel-modal-actions">
+                            <button type="button" class="btn btn-outline" id="btn-cancel">Cancelar</button>
+                            <button type="submit" class="btn">Guardar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('btn-cancel').addEventListener('click', closeModal);
+
+        document.getElementById('user-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const payload = {
+                name: document.getElementById('f-name').value.trim(),
+                email: document.getElementById('f-email').value.trim(),
+                rfc: document.getElementById('f-rfc').value.trim(),
+                phone: document.getElementById('f-phone').value.trim(),
+                cellphone: document.getElementById('f-cellphone').value.trim(),
+                contactName: document.getElementById('f-contact-name').value.trim(),
+                contactPhone: document.getElementById('f-contact-phone').value.trim(),
+            };
+            if (!id) {
+                payload.password = document.getElementById('f-password').value;
+            }
+
+            try {
+                if (id) {
+                    await api.put(`/user/update/${id}`, payload);
+                    toast('Propietario actualizado.');
+                } else {
+                    await api.post('/user/create', payload);
+                    toast('Propietario creado.');
+                }
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    function confirmDelete(id) {
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Eliminar propietario</h2>
+                    <p>Esta acción no se puede deshacer. ¿Confirmas eliminar este registro?</p>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="btn-cancel-delete">Cancelar</button>
+                        <button type="button" class="btn" id="btn-confirm-delete">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('btn-cancel-delete').addEventListener('click', closeModal);
+        document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+            try {
+                await api.del(`/user/delete/${id}`);
+                toast('Propietario eliminado.');
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+</script>
+</body>
+</html>

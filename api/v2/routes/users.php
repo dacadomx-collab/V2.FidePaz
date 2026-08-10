@@ -65,16 +65,28 @@ function handle_users_filter(): void
         $params['role'] = $_GET['role'];
     }
 
+    // Orden por encabezado de columna (2026-08-08, panel nuevo): whitelist
+    // estricta de columna -- nunca se interpola el valor crudo de $_GET en
+    // el SQL, solo se usa para elegir entre literales fijos conocidos.
+    $sortColumns = ['name' => 'name', 'email' => 'email', 'code' => 'code', 'role' => 'role', 'createAt' => 'createAt'];
+    $sortKey = $sortColumns[$_GET['sortKey'] ?? ''] ?? 'name';
+    $sortDir = (($_GET['sortDir'] ?? '') === 'desc') ? 'DESC' : 'ASC';
+
     $pdo = Database::connection();
 
     $countStmt = $pdo->prepare('SELECT COUNT(*) FROM `user` WHERE ' . implode(' AND ', $where));
     $countStmt->execute($params);
     $total = (int) $countStmt->fetchColumn();
 
-    $sql = 'SELECT id, email, name, code, phone, cellphone, role, createAt
+    // rfc/contactName/contactPhone se agregan al SELECT (2026-08-08): el
+    // panel nuevo prellena el formulario de edición con la fila ya cargada
+    // en la tabla (no existe un GET /user/{id} real) -- sin estas columnas
+    // el formulario los mandaría vacíos en cada edición, borrando el dato
+    // real en la base con cada PUT /user/update/{id}.
+    $sql = 'SELECT id, email, name, code, phone, cellphone, role, createAt, rfc, contactName, contactPhone
             FROM `user`
             WHERE ' . implode(' AND ', $where) . '
-            ORDER BY name
+            ORDER BY ' . $sortKey . ' ' . $sortDir . '
             LIMIT :limit OFFSET :offset';
     $stmt = $pdo->prepare($sql);
     foreach ($params as $key => $value) {

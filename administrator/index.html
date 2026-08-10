@@ -122,5 +122,73 @@
     document.addEventListener('DOMContentLoaded', buildFloatingButtons);
   }
 })();
+(function () {
+  // Enlace al nuevo "Estado de cuenta" elegante (2026-08-08) — igual que
+  // los botones flotantes de arriba: JS/CSS inyectado junto al bundle de
+  // Angular, sin tocar ninguna instrucción compilada ni el botón de
+  // descarga de Excel que ya existe (se deja intacto). Se muestra solo en
+  // las pantallas de cuotas/pagos/reportes, detectadas por el pathname
+  // que expone el Router de Angular (SPA, sin recarga real -- por eso hay
+  // que parchear pushState/replaceState para saber cuándo cambia la ruta).
+  var TARGET_PATTERNS = [/\/home\/reports\/state-owner(?:\/(\d+))?/, /\/home\/(quotas|payments|reports)\b/];
+
+  function findOwnerId(pathname) {
+    var m = pathname.match(/\/home\/reports\/state-owner\/(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  function computeReportHref() {
+    var pathname = window.location.pathname;
+    var matches = TARGET_PATTERNS.some(function (re) { return re.test(pathname); });
+    if (!matches) { return null; }
+
+    var marker = '/administrator/';
+    var idx = pathname.indexOf(marker);
+    var root = idx >= 0 ? pathname.slice(0, idx) : '';
+    var ownerId = findOwnerId(pathname);
+    var href = root + '/reportes/estado-de-cuenta.html';
+    if (ownerId) { href += '?userId=' + ownerId; }
+    return href;
+  }
+
+  function syncButton() {
+    var href = computeReportHref();
+    var btn = document.getElementById('fp-estado-cuenta-link');
+
+    if (!href) {
+      if (btn) { btn.remove(); }
+      return;
+    }
+
+    if (!btn) {
+      btn = document.createElement('a');
+      btn.id = 'fp-estado-cuenta-link';
+      btn.className = 'fp-float-btn fp-estado-cuenta-btn';
+      btn.target = '_blank';
+      btn.rel = 'noopener';
+      btn.textContent = '📄';
+      btn.title = 'Ver estado de cuenta elegante';
+      document.body.appendChild(btn);
+    }
+    btn.href = href;
+  }
+
+  ['pushState', 'replaceState'].forEach(function (method) {
+    var original = history[method];
+    history[method] = function () {
+      var result = original.apply(this, arguments);
+      setTimeout(syncButton, 0);
+      return result;
+    };
+  });
+  window.addEventListener('popstate', syncButton);
+
+  syncButton();
+  if (document.body) {
+    // no-op, syncButton ya corrió arriba
+  } else {
+    document.addEventListener('DOMContentLoaded', syncButton);
+  }
+})();
 </script>
 </body></html>

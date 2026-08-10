@@ -1,0 +1,5 @@
+# panel/ — reconstrucción propia del panel administrativo (2026-08-08),
+# reemplaza módulo por módulo el bundle Angular heredado de V1 en
+# administrator/. Sin build, sin SPA fallback: cada .html es un archivo
+# real, así que no necesita una regla de rewrite como administrator/.htaccess.
+Options -Indexes
