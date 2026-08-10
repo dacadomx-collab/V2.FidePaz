@@ -328,6 +328,10 @@
     margin-top: var(--space-md);
 }
 
+.panel-modal-actions-start {
+    justify-content: flex-start;
+}
+
 /* ── TOAST ─────────────────────────────────────────────────────────────── */
 .panel-toast-stack {
     position: fixed;
@@ -467,6 +471,9 @@
 /* ── UTILIDADES ADICIONALES (2026-08-10, barrido de estilos inline) ──────── */
 .panel-toolbar {
     margin-bottom: var(--space-md);
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
 }
 
 .panel-toolbar-inline {
@@ -494,4 +501,112 @@
 .panel-link-btn-sm {
     padding: 0.35rem 0.7rem;
     font-size: 0.85rem;
+}
+
+/* ── DRAWER DE HISTORIAL DE AUDITORÍA (2026-08-10) ────────────────────────
+   Panel lateral deslizante, no un modal centrado -- para que quepa una
+   lista larga de eventos sin competir en altura con el resto del formulario. */
+.panel-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.45);
+    z-index: 1300;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.panel-drawer {
+    width: 100%;
+    max-width: 28rem;
+    height: 100%;
+    background-color: var(--color-bg);
+    box-shadow: -12px 0 30px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-md);
+    overflow-y: auto;
+}
+
+.panel-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-sm);
+}
+
+.panel-drawer-header h2 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.panel-drawer-close {
+    border: none;
+    background: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+}
+
+.panel-drawer-filters {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.panel-drawer-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.panel-audit-entry {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+}
+
+.panel-audit-entry-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+.panel-audit-json {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.78rem;
+    background-color: var(--color-bg-alt);
+    border-radius: var(--radius);
+    padding: 0.5rem;
+    margin: 0.4rem 0 0;
+}
+
+.panel-drawer-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--color-border);
+}
+
+.panel-drawer-pagination button {
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.65rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.panel-drawer-pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }

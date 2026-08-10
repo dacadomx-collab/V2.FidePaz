@@ -636,16 +636,21 @@ function handle_payment_owners(): void
 /**
  * GET /payment/get-file/{id} — descarga del comprobante/recibo de una cuota.
  *
- * **Limitación honesta, no un bug oculto:** `user_quotas.receipt` sí tiene
- * datos reales para 5,170 registros (ej. `images/2022/11/9/<uuid>.jpeg`),
- * pero esos archivos físicos NUNCA se migraron a este hosting -- vivían en
- * la infraestructura Node.js/Cloud Run original de la V1 (no en el
- * WordPress del que sí se rescató contenido), y no hay rastro de su URL
- * base ni en el bundle ni en el backup disponible. Responde 404 con un
- * mensaje claro en vez de simular un archivo que no existe. Igual valida
- * que la cuota pertenezca al colono autenticado (si no es admin/super_admin)
- * antes de admitir que el registro existe, para no filtrar si otro
- * colono tiene o no comprobante.
+ * **Limitación honesta heredada, no un bug oculto:** `user_quotas.receipt`
+ * tiene datos reales para 5,170 registros históricos (ej.
+ * `images/2022/11/9/<uuid>.jpeg`), pero esos archivos físicos NUNCA se
+ * migraron a este hosting -- vivían en la infraestructura Node.js/Cloud
+ * Run original de la V1, sin rastro de su URL base. Sigue respondiendo
+ * 404 honesto para esos.
+ *
+ * **Ampliado 2026-08-10:** `receipt` ahora también puede apuntar a un
+ * archivo real subido vía `POST /payment/upload-receipt` (guardado en
+ * `assets/uploads/receipts/`). Se distingue por existencia real en disco,
+ * no por un flag nuevo en el schema -- si el archivo existe, se sirve; si
+ * no (caso histórico de arriba), 404 honesto. Valida que la cuota
+ * pertenezca al colono autenticado (si no es admin/super_admin) antes de
+ * admitir que el registro existe, para no filtrar si otro colono tiene o
+ * no comprobante.
  */
 function handle_payment_get_file(int $quotaId): void
 {
@@ -661,11 +666,131 @@ function handle_payment_get_file(int $quotaId): void
         Response::error(404, 'Comprobante no encontrado');
     }
 
-    Response::error(
-        404,
-        'El comprobante existe en el registro histórico pero el archivo no está disponible: '
-        . 'no se migró desde la infraestructura original de la V1.'
-    );
+    $receipt = (string) ($row['receipt'] ?? '');
+    // basename() descarta cualquier segmento de ruta -- receipt nunca debe
+    // poder usarse para hacer path traversal fuera de receipts/, ni
+    // siquiera con valores históricos que sí contienen "/".
+    $safeName = basename($receipt);
+    $fullPath = __DIR__ . '/../../../assets/uploads/receipts/' . $safeName;
+
+    if ($receipt === '' || $safeName === '' || !is_file($fullPath)) {
+        Response::error(
+            404,
+            'El comprobante existe en el registro histórico pero el archivo no está disponible: '
+            . 'no se migró desde la infraestructura original de la V1.'
+        );
+    }
+
+    $mimeTypes = ['pdf' => 'application/pdf', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'];
+    $ext = strtolower((string) pathinfo($safeName, PATHINFO_EXTENSION));
+    $contentType = $mimeTypes[$ext] ?? 'application/octet-stream';
+
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: ' . $contentType);
+        header('Content-Disposition: inline; filename="' . $safeName . '"');
+        header('Content-Length: ' . (string) filesize($fullPath));
+    }
+    readfile($fullPath);
+    exit;
+}
+
+/**
+ * POST /payment/upload-receipt (multipart/form-data: quotaId, file)
+ * (admin/super_admin) — Tarea aprobada 2026-08-10: subir el comprobante
+ * real de una cuota (transferencia, depósito, etc.) en vez de solo marcar
+ * "pagado" a ciegas. Whitelist estricta de extensión + tipo MIME real
+ * (nunca se confía en el `Content-Type` que manda el cliente, se valida
+ * con `finfo` contra el contenido real del archivo -- Zero Trust), máximo
+ * 5 MB, nombre de archivo generado server-side (nunca el nombre original
+ * del cliente, evita path traversal y colisiones). Actualiza
+ * `user_quotas.receipt` con el nombre generado -- NO cambia `status`
+ * (subir un comprobante y marcar "pagado" son acciones separadas, ver
+ * `PUT /payment/pay/{id}`, que ya acepta `receipt` como texto si se
+ * quiere hacer en un solo paso).
+ */
+function handle_payment_upload_receipt(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $quotaId = (int) ($_POST['quotaId'] ?? 0);
+    if ($quotaId <= 0) {
+        Response::error(400, 'quotaId es obligatorio');
+    }
+
+    $pdo = Database::connection();
+    $existing = $pdo->prepare('SELECT id, receipt FROM user_quotas WHERE id = ?');
+    $existing->execute([$quotaId]);
+    $before = $existing->fetch();
+    if ($before === false) {
+        Response::error(404, 'Cuota no encontrada');
+    }
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        $uploadErr = $_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE;
+        $message = $uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE
+            ? 'El archivo excede el tamaño máximo permitido por el servidor.'
+            : 'No se recibió ningún archivo válido.';
+        Response::error(400, $message);
+    }
+
+    $tmpPath = $_FILES['file']['tmp_name'];
+    $sizeBytes = (int) $_FILES['file']['size'];
+    $maxBytes = 5 * 1024 * 1024;
+    if ($sizeBytes > $maxBytes) {
+        Response::error(400, 'El archivo supera el máximo de 5 MB.');
+    }
+
+    // Extensión declarada por el cliente SOLO se usa como pista inicial;
+    // la validación real es el tipo MIME verdadero del contenido (finfo),
+    // nunca el Content-Type que manda el navegador (falsificable).
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $realMimeType = finfo_file($finfo, $tmpPath);
+    finfo_close($finfo);
+
+    $allowedMimeToExt = [
+        'application/pdf' => 'pdf',
+        'image/png' => 'png',
+        'image/jpeg' => 'jpg',
+    ];
+
+    if (!isset($allowedMimeToExt[$realMimeType])) {
+        Response::error(400, 'Tipo de archivo no permitido. Solo se aceptan PDF, PNG o JPG.');
+    }
+    $ext = $allowedMimeToExt[$realMimeType];
+
+    $uploadsDir = __DIR__ . '/../../../assets/uploads/receipts/';
+    $generatedName = 'uq' . $quotaId . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+    $destination = $uploadsDir . $generatedName;
+
+    if (!move_uploaded_file($tmpPath, $destination)) {
+        Response::error(500, 'No se pudo guardar el archivo en el servidor.');
+    }
+
+    $pdo->prepare('UPDATE user_quotas SET receipt = ? WHERE id = ?')->execute([$generatedName, $quotaId]);
+
+    // Si había un comprobante propio anterior (no un path histórico de la
+    // V1, que nunca existe en disco aquí) se borra para no acumular
+    // archivos huérfanos con cada reemplazo.
+    $previousReceipt = (string) ($before['receipt'] ?? '');
+    if ($previousReceipt !== '') {
+        $previousPath = $uploadsDir . basename($previousReceipt);
+        if (is_file($previousPath) && $previousPath !== $destination) {
+            @unlink($previousPath);
+        }
+    }
+
+    Audit::log('user_quotas', $quotaId, 'update', (int) $claims['sub'], [
+        'before' => ['receipt' => $before['receipt']],
+        'after' => ['receipt' => $generatedName],
+    ]);
+
+    Response::json(200, [
+        'status' => 'ok',
+        'message' => 'Comprobante subido correctamente',
+        'receipt' => $generatedName,
+    ]);
 }
 
 /**

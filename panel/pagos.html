@@ -13,7 +13,7 @@
 <div id="panel-shell-root"></div>
 
 <script type="module">
-    import { api, getToken, goToLogin, panelRoot } from './js/api.js';
+    import { api, getToken, goToLogin } from './js/api.js';
     import { renderShell } from './js/shell.js';
     import { createDataTable, escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
@@ -42,9 +42,10 @@
             { key: 'dueDate', label: 'Vencimiento', sortable: true, render: (i) => (i.dueDate || '').slice(0, 10) },
             { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge">${STATUS_LABEL[i.status] || i.status}</span>` },
         ],
-        renderActions: (item) => item.status === 1
-            ? `<button type="button" data-action="pay" title="Marcar como pagado">✅</button>`
-            : `<span title="Ya pagado">—</span>`,
+        renderActions: (item) => `
+            ${item.status === 1 ? `<button type="button" data-action="pay" title="Marcar como pagado">✅</button>` : ''}
+            <button type="button" data-action="receipt" title="${item.receipt ? 'Ver comprobante' : 'Adjuntar comprobante'}">${item.receipt ? '📎' : '📄'}</button>
+        `,
         fetchPage: async ({ search, sortKey, sortDir, page }) => {
             const data = await api.get('/payment/filter', { q: search, sortKey, sortDir, page });
             data.items.forEach((item) => rowsById.set(String(item.id), item));
@@ -53,10 +54,11 @@
     });
 
     tableMount.addEventListener('click', (event) => {
-        const btn = event.target.closest('button[data-action="pay"]');
+        const btn = event.target.closest('button[data-action]');
         if (!btn) { return; }
         const id = btn.closest('tr').dataset.id;
-        confirmPay(id);
+        if (btn.dataset.action === 'pay') { confirmPay(id); }
+        if (btn.dataset.action === 'receipt') { openReceiptModal(id); }
     });
 
     function closeModal() {
@@ -85,6 +87,74 @@
             try {
                 await api.put(`/payment/pay/${id}`, {});
                 toast('Pago registrado.');
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    // Descarga autenticada del comprobante -- un <a href> plano no puede
+    // mandar el header Authorization, así que se pide por fetch (api.getBlob)
+    // y se abre como blob URL temporal.
+    async function viewReceipt(id) {
+        try {
+            const blob = await api.getBlob(`/payment/get-file/${id}`);
+            const blobUrl = URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank', 'noopener');
+        } catch (err) {
+            toast(err.message, { type: 'error' });
+        }
+    }
+
+    function openReceiptModal(id) {
+        const item = rowsById.get(String(id));
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Comprobante de pago</h2>
+                    <p>Colono: <strong>${item ? escapeHtml(item.user.name) : ''}</strong></p>
+                    ${item && item.receipt ? `
+                        <div class="panel-modal-actions panel-modal-actions-start">
+                            <button type="button" class="btn btn-outline" id="btn-view-receipt">Ver comprobante actual</button>
+                        </div>
+                    ` : '<p class="panel-note">Esta cuota no tiene comprobante adjunto todavía.</p>'}
+                    <form id="receipt-form">
+                        <div class="panel-form-field">
+                            <label for="f-receipt-file">${item && item.receipt ? 'Reemplazar con un nuevo archivo' : 'Adjuntar archivo'} (PDF, PNG o JPG, máx. 5 MB)</label>
+                            <input type="file" id="f-receipt-file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" required>
+                        </div>
+                        <div class="panel-modal-actions">
+                            <button type="button" class="btn btn-outline" id="btn-cancel-receipt">Cerrar</button>
+                            <button type="submit" class="btn">Subir</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('btn-cancel-receipt').addEventListener('click', closeModal);
+        const viewBtn = document.getElementById('btn-view-receipt');
+        if (viewBtn) { viewBtn.addEventListener('click', () => viewReceipt(id)); }
+
+        document.getElementById('receipt-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const fileInput = document.getElementById('f-receipt-file');
+            const file = fileInput.files[0];
+            if (!file) { return; }
+            if (file.size > 5 * 1024 * 1024) {
+                toast('El archivo supera el máximo de 5 MB.', { type: 'error' });
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('quotaId', id);
+            formData.append('file', file);
+
+            try {
+                await api.upload('/payment/upload-receipt', formData);
+                toast('Comprobante subido.');
                 closeModal();
                 table.reload();
             } catch (err) {

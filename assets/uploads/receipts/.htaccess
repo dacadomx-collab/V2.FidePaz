@@ -1,0 +1,23 @@
+# assets/uploads/receipts/ — comprobantes de pago subidos por administradores
+# (2026-08-10, POST /api/v2/payment/upload-receipt). Solo .pdf/.png/.jpg/.jpeg
+# llegan a escribirse aquí (whitelist validada en el backend antes de mover
+# el archivo), pero esta carpeta lleva su propia defensa en profundidad por
+# si algún día algo más termina escribiendo aquí: nunca ejecutar nada como
+# PHP, sin importar la extensión real del archivo.
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "\.ph(p[3457]?|t|tml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+Options -Indexes -ExecCGI

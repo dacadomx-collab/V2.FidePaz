@@ -60,7 +60,11 @@ class ApiError extends Error {
     }
 }
 
-async function request(method, path, { params, body } = {}) {
+export function apiUrl(path) {
+    return API_BASE + path;
+}
+
+function buildUrl(path, params) {
     let url = API_BASE + path;
     if (params) {
         const qs = new URLSearchParams();
@@ -72,19 +76,17 @@ async function request(method, path, { params, body } = {}) {
         const qsString = qs.toString();
         if (qsString) { url += '?' + qsString; }
     }
+    return url;
+}
 
-    const headers = { 'Accept': 'application/json' };
+async function doFetch(url, options) {
+    const headers = { Accept: 'application/json', ...(options.headers || {}) };
     const token = getToken();
-    if (token) { headers['Authorization'] = 'Bearer ' + token; }
-    if (body !== undefined) { headers['Content-Type'] = 'application/json'; }
+    if (token) { headers.Authorization = 'Bearer ' + token; }
 
     let response;
     try {
-        response = await fetch(url, {
-            method,
-            headers,
-            body: body !== undefined ? JSON.stringify(body) : undefined,
-        });
+        response = await fetch(url, { ...options, headers });
     } catch (networkError) {
         throw new ApiError('No se pudo conectar con el servidor. Revisa tu conexión.', 0);
     }
@@ -94,6 +96,20 @@ async function request(method, path, { params, body } = {}) {
         goToLogin();
         throw new ApiError('Sesión expirada.', 401);
     }
+
+    return response;
+}
+
+async function request(method, path, { params, body } = {}) {
+    const url = buildUrl(path, params);
+    const headers = {};
+    if (body !== undefined) { headers['Content-Type'] = 'application/json'; }
+
+    const response = await doFetch(url, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
 
     let data = null;
     const contentType = response.headers.get('Content-Type') || '';
@@ -109,11 +125,36 @@ async function request(method, path, { params, body } = {}) {
     return data;
 }
 
+// Subida de archivos (multipart/form-data) -- nunca fija Content-Type a
+// mano, el navegador lo hace solo con el boundary correcto para FormData.
+async function requestUpload(path, formData) {
+    const response = await doFetch(buildUrl(path), { method: 'POST', body: formData });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+        throw new ApiError((data && data.message) || 'Error al subir el archivo.', response.status);
+    }
+    return data;
+}
+
+// Descarga autenticada de un binario (comprobantes, .xlsx, etc.) -- un
+// <a href> plano no puede mandar el header Authorization, así que se pide
+// por fetch y se devuelve como Blob para abrir/descargar en el cliente.
+async function requestBlob(path) {
+    const response = await doFetch(buildUrl(path), { method: 'GET' });
+    if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new ApiError((data && data.message) || 'No se pudo obtener el archivo.', response.status);
+    }
+    return response.blob();
+}
+
 export const api = {
     get: (path, params) => request('GET', path, { params }),
     post: (path, body) => request('POST', path, { body }),
     put: (path, body) => request('PUT', path, { body }),
     del: (path) => request('DELETE', path),
+    upload: (path, formData) => requestUpload(path, formData),
+    getBlob: (path) => requestBlob(path),
 };
 
 export { ApiError };

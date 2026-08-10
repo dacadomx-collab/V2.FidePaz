@@ -180,6 +180,8 @@ try {
         handle_dashboard_yearly_trends();
     } elseif ($method === 'POST' && $path === '/admin/test-email') {
         handle_admin_test_email();
+    } elseif ($method === 'GET' && $path === '/audit-logs') {
+        handle_audit_logs_list();
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
         // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();
@@ -197,6 +199,8 @@ try {
         handle_payment_owners();
     } elseif ($method === 'GET' && preg_match('#^/payment/get-file/(\d+)$#', $path, $m)) {
         handle_payment_get_file((int) $m[1]);
+    } elseif ($method === 'POST' && $path === '/payment/upload-receipt') {
+        handle_payment_upload_receipt();
     } elseif ($method === 'GET' && $path === '/payment') {
         // Ruta REAL que usa la pantalla "Pagos" (app-list-payments, chunk
         // 104) -- lista plana de pagos individuales, distinta de

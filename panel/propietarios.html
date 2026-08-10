@@ -17,6 +17,7 @@
     import { renderShell } from './js/shell.js';
     import { createDataTable, escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
+    import { openAuditDrawer } from './js/components/auditDrawer.js';
 
     if (!getToken()) { goToLogin(); }
 
@@ -25,6 +26,7 @@
     content.innerHTML = `
         <div class="panel-toolbar">
             <button type="button" class="btn" id="btn-nuevo">+ Nuevo propietario</button>
+            <button type="button" class="btn btn-outline" id="btn-historial">📜 Ver Historial</button>
         </div>
         <div id="table-mount"></div>
         <div id="modal-mount"></div>
@@ -78,6 +80,7 @@
     });
 
     document.getElementById('btn-nuevo').addEventListener('click', () => openForm(null));
+    document.getElementById('btn-historial').addEventListener('click', () => openAuditDrawer('user', 'Propietarios'));
 
     function closeModal() {
         modalMount.innerHTML = '';
