@@ -145,6 +145,77 @@ function handle_announcements_by_category(string $category): void
 }
 
 /**
+ * GET /announcements?page=&q=&category=&status= — listado ADMIN (2026-08-10, panel nuevo).
+ * A diferencia de `handle_announcements_by_category`, ve TODAS las categorías y estados
+ * (incluye `draft`, no solo `published`) -- necesario para que `panel/comunicados.html` pueda
+ * gestionar contenido antes de publicarlo. No forma parte del contrato que el bundle V1 leía de
+ * WordPress; es la vía real de administración ahora que existe una tabla propia.
+ */
+function handle_announcements_admin_list(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $where = ['1=1'];
+    $params = [];
+    if (!empty($_GET['q'])) {
+        $where[] = 'title LIKE :q';
+        $params['q'] = '%' . $_GET['q'] . '%';
+    }
+    if (!empty($_GET['category']) && in_array($_GET['category'], ['comunicados', 'financiero', 'reportes'], true)) {
+        $where[] = 'category = :category';
+        $params['category'] = $_GET['category'];
+    }
+    if (!empty($_GET['status']) && in_array($_GET['status'], ['published', 'draft'], true)) {
+        $where[] = 'status = :status';
+        $params['status'] = $_GET['status'];
+    }
+
+    $sortColumns = ['title' => 'title', 'category' => 'category', 'status' => 'status', 'published_at' => 'published_at'];
+    $sortKey = $sortColumns[$_GET['sortKey'] ?? ''] ?? 'published_at';
+    $sortDir = (($_GET['sortDir'] ?? '') === 'asc') ? 'ASC' : 'DESC';
+
+    $pdo = Database::connection();
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM announcements WHERE ' . implode(' AND ', $where));
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    // content SÍ va en el SELECT (2026-08-10): no existe un GET
+    // /announcements/{id} aparte -- panel/comunicados.html prellena el
+    // formulario de edición con la fila ya cargada en la tabla, igual que
+    // Propietarios/Propiedades. Omitirlo aquí habría mandado el textarea
+    // vacío en cada edición y borrado el contenido real al guardar.
+    $stmt = $pdo->prepare(
+        'SELECT id, title, content, excerpt, category, status, image_url, archivo_pdf_url, published_at
+         FROM announcements
+         WHERE ' . implode(' AND ', $where) . '
+         ORDER BY ' . $sortKey . ' ' . $sortDir . '
+         LIMIT :limit OFFSET :offset'
+    );
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $stmt->fetchAll(),
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}
+
+/**
  * POST /announcements — crear un comunicado/informe (admin/super_admin).
  * No forma parte del contrato que el bundle V1 esperaba (eso solo leía de
  * WordPress); es la vía real para que el panel administre contenido nuevo

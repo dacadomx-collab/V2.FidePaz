@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Comunicados — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { createDataTable } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('comunicados', 'Comunicados');
+
+    content.innerHTML = `
+        <div style="margin-bottom:1rem;">
+            <button type="button" class="btn" id="btn-nuevo">+ Nuevo comunicado</button>
+        </div>
+        <div id="table-mount"></div>
+        <div id="modal-mount"></div>
+    `;
+
+    const tableMount = document.getElementById('table-mount');
+    const modalMount = document.getElementById('modal-mount');
+    const rowsById = new Map();
+
+    const CATEGORY_LABEL = { comunicados: 'Comunicados', financiero: 'Financiero', reportes: 'Reportes' };
+
+    const table = createDataTable(tableMount, {
+        searchPlaceholder: 'Buscar por título…',
+        emptyMessage: 'No hay comunicados con ese criterio.',
+        defaultSortKey: 'published_at',
+        defaultSortDir: 'desc',
+        columns: [
+            { key: 'title', label: 'Título', sortable: true },
+            { key: 'category', label: 'Categoría', sortable: true, render: (i) => CATEGORY_LABEL[i.category] || i.category },
+            { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge">${i.status === 'published' ? 'Publicado' : 'Borrador'}</span>` },
+            { key: 'published_at', label: 'Publicado', sortable: true, render: (i) => (i.published_at || '').slice(0, 10) || '—' },
+        ],
+        renderActions: (item) => `
+            <button type="button" data-action="edit" title="Editar">✏️</button>
+            <button type="button" data-action="delete" title="Eliminar">🗑️</button>
+        `,
+        fetchPage: async ({ search, sortKey, sortDir, page }) => {
+            const data = await api.get('/announcements', { q: search, sortKey, sortDir, page });
+            data.items.forEach((item) => rowsById.set(String(item.id), item));
+            return { items: data.items, meta: data.meta };
+        },
+    });
+
+    tableMount.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action]');
+        if (!btn) { return; }
+        const id = btn.closest('tr').dataset.id;
+        if (btn.dataset.action === 'edit') { openForm(id); }
+        if (btn.dataset.action === 'delete') { confirmDelete(id); }
+    });
+
+    document.getElementById('btn-nuevo').addEventListener('click', () => openForm(null));
+
+    function closeModal() {
+        modalMount.innerHTML = '';
+    }
+
+    function escapeHtml(str) {
+        return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function openForm(id) {
+        const item = id ? rowsById.get(String(id)) : null;
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>${id ? 'Editar comunicado' : 'Nuevo comunicado'}</h2>
+                    <form id="ann-form">
+                        <div class="panel-form-field">
+                            <label for="f-title">Título</label>
+                            <input type="text" id="f-title" required value="${item ? escapeHtml(item.title) : ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-excerpt">Resumen (opcional)</label>
+                            <input type="text" id="f-excerpt" value="${item ? escapeHtml(item.excerpt) : ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-content">Contenido</label>
+                            <textarea id="f-content" rows="6" required style="padding:0.6rem 0.75rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);font-size:0.95rem;font-family:inherit;">${item ? escapeHtml(item.content) : ''}</textarea>
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-category">Categoría</label>
+                            <select id="f-category">
+                                <option value="comunicados" ${item && item.category === 'comunicados' ? 'selected' : ''}>Comunicados</option>
+                                <option value="financiero" ${item && item.category === 'financiero' ? 'selected' : ''}>Financiero</option>
+                                <option value="reportes" ${item && item.category === 'reportes' ? 'selected' : ''}>Reportes</option>
+                            </select>
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-status">Estatus</label>
+                            <select id="f-status">
+                                <option value="published" ${!item || item.status === 'published' ? 'selected' : ''}>Publicado</option>
+                                <option value="draft" ${item && item.status === 'draft' ? 'selected' : ''}>Borrador</option>
+                            </select>
+                        </div>
+                        <div class="panel-modal-actions">
+                            <button type="button" class="btn btn-outline" id="btn-cancel">Cancelar</button>
+                            <button type="submit" class="btn">Guardar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('btn-cancel').addEventListener('click', closeModal);
+
+        document.getElementById('ann-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const payload = {
+                title: document.getElementById('f-title').value.trim(),
+                excerpt: document.getElementById('f-excerpt').value.trim(),
+                content: document.getElementById('f-content').value.trim(),
+                category: document.getElementById('f-category').value,
+                status: document.getElementById('f-status').value,
+            };
+
+            try {
+                if (id) {
+                    await api.put(`/announcements/${id}`, payload);
+                    toast('Comunicado actualizado.');
+                } else {
+                    await api.post('/announcements', payload);
+                    toast('Comunicado creado.');
+                }
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    function confirmDelete(id) {
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Eliminar comunicado</h2>
+                    <p>Esta acción no se puede deshacer. ¿Confirmas eliminar este registro?</p>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="btn-cancel-delete">Cancelar</button>
+                        <button type="button" class="btn" id="btn-confirm-delete">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('btn-cancel-delete').addEventListener('click', closeModal);
+        document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+            try {
+                await api.del(`/announcements/${id}`);
+                toast('Comunicado eliminado.');
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+</script>
+</body>
+</html>

@@ -226,6 +226,8 @@ try {
         handle_comunicados_list();
     } elseif ($method === 'GET' && $path === '/informes') {
         handle_informes_list();
+    } elseif ($method === 'GET' && $path === '/announcements') {
+        handle_announcements_admin_list();
     } elseif ($method === 'POST' && $path === '/announcements') {
         handle_announcements_create();
     } elseif ($method === 'PUT' && preg_match('#^/announcements/(\d+)$#', $path, $m)) {

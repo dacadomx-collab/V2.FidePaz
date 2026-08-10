@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reportes — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        .reportes-summary {
+            display: flex;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+            flex-wrap: wrap;
+        }
+
+        .reportes-summary .eoc-card {
+            background-color: var(--color-bg-alt);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            padding: var(--space-sm) var(--space-md);
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .reportes-summary .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .reportes-summary .label {
+            color: var(--color-text-muted);
+            font-size: 0.82rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin, panelRoot } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { createDataTable } from './js/components/dataTable.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('reportes', 'Reportes');
+
+    content.innerHTML = `
+        <div class="reportes-summary">
+            <div class="eoc-card"><div class="value" id="sum-paid">—</div><div class="label">Total pagado (página actual)</div></div>
+            <div class="eoc-card"><div class="value" id="sum-pending">—</div><div class="label">Total pendiente (página actual)</div></div>
+        </div>
+        <div id="table-mount"></div>
+    `;
+
+    const tableMount = document.getElementById('table-mount');
+    const reportBase = panelRoot() + '../reportes/estado-de-cuenta.html';
+
+    function quotasSummary(owner) {
+        const paid = owner.quotas.filter((q) => Number(q.status) === 2).length;
+        const pending = owner.quotas.filter((q) => Number(q.status) !== 2).length;
+        return `${paid} pagada${paid === 1 ? '' : 's'} · ${pending} pendiente${pending === 1 ? '' : 's'}`;
+    }
+
+    const table = createDataTable(tableMount, {
+        searchPlaceholder: 'Buscar propietario por nombre…',
+        emptyMessage: 'No hay propietarios con ese criterio.',
+        defaultSortKey: null,
+        columns: [
+            { key: 'name', label: 'Propietario' },
+            { key: 'code', label: 'Código' },
+            { key: 'quotas', label: 'Cuotas', render: quotasSummary },
+        ],
+        renderActions: (item) => `<a class="btn btn-outline" style="padding:0.35rem 0.7rem;font-size:0.85rem;" target="_blank" href="${reportBase}?userId=${item.id}">Ver estado de cuenta</a>`,
+        fetchPage: async ({ search, page }) => {
+            const data = await api.get('/payment/list-owners', { search, page });
+            document.getElementById('sum-paid').textContent = `$${Number(data.totalPaid).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+            document.getElementById('sum-pending').textContent = `$${Number(data.totalToPay).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+            return { items: data.items, meta: data.meta };
+        },
+    });
+</script>
+</body>
+</html>

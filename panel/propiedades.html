@@ -15,7 +15,7 @@
 <script type="module">
     import { api, getToken, goToLogin } from './js/api.js';
     import { renderShell } from './js/shell.js';
-    import { createDataTable } from './js/components/dataTable.js';
+    import { createDataTable, escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
 
     if (!getToken()) { goToLogin(); }
@@ -40,7 +40,7 @@
 
     function currentOwnerName(item) {
         const uq = item.userquotas && item.userquotas[0];
-        return uq && uq.user ? uq.user.name : '—';
+        return uq && uq.user ? escapeHtml(uq.user.name) : '—';
     }
 
     const table = createDataTable(tableMount, {
@@ -48,9 +48,9 @@
         emptyMessage: 'No hay propiedades registradas con ese criterio.',
         defaultSortKey: 'street',
         columns: [
-            { key: 'street', label: 'Calle', sortable: true, render: (i) => i.street.name || '—' },
+            { key: 'street', label: 'Calle', sortable: true, render: (i) => escapeHtml(i.street.name) || '—' },
             { key: 'numOficial', label: 'N.º oficial', sortable: true },
-            { key: 'quota', label: 'Cuota', sortable: true, render: (i) => i.quota.name ? `${i.quota.name} ($${Number(i.quota.cost).toLocaleString('es-MX')})` : '—' },
+            { key: 'quota', label: 'Cuota', sortable: true, render: (i) => i.quota.name ? `${escapeHtml(i.quota.name)} ($${Number(i.quota.cost).toLocaleString('es-MX')})` : '—' },
             { key: 'dueDay', label: 'Día de pago', sortable: true },
             { key: 'owner', label: 'Propietario actual', render: currentOwnerName },
         ],
@@ -81,17 +81,17 @@
 
     async function loadStreetOptions(selectedId) {
         const streets = await api.get('/property/streets');
-        return streets.map((s) => `<option value="${s.id}" ${String(s.id) === String(selectedId) ? 'selected' : ''}>${s.name}</option>`).join('');
+        return streets.map((s) => `<option value="${s.id}" ${String(s.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('');
     }
 
     async function loadQuotaOptions(selectedId) {
         const data = await api.get('/quota', { page: 1 });
-        return data.items.map((q) => `<option value="${q.id}" ${String(q.id) === String(selectedId) ? 'selected' : ''}>${q.name} ($${Number(q.cost).toLocaleString('es-MX')})</option>`).join('');
+        return data.items.map((q) => `<option value="${q.id}" ${String(q.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(q.name)} ($${Number(q.cost).toLocaleString('es-MX')})</option>`).join('');
     }
 
     async function loadOwnerOptions() {
         const owners = await api.get('/user/byterm');
-        return owners.map((u) => `<option value="${u.id}">${u.name} (${u.code || 'sin código'})</option>`).join('');
+        return owners.map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.code) || 'sin código'})</option>`).join('');
     }
 
     async function openForm(id) {

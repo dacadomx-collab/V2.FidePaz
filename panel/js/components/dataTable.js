@@ -5,6 +5,13 @@
 // vez del dropdown "Ordenar por". Sin dependencias de build, un solo
 // archivo, vanilla JS.
 
+// Escapa valores antes de interpolarlos en innerHTML -- las columnas sin
+// `render` propio (y cualquier página que la use para texto plano) insertan
+// datos que vienen de la base (nombres, calles, etc.), no HTML de confianza.
+export function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 /**
  * @param {HTMLElement} container - elemento donde se monta la tabla completa.
  * @param {Object} options
@@ -96,7 +103,7 @@ export function createDataTable(container, options) {
         }
         tbody.innerHTML = items.map((item) => {
             const cells = options.columns.map((col) => {
-                const value = col.render ? col.render(item) : (item[col.key] ?? '');
+                const value = col.render ? col.render(item) : escapeHtml(item[col.key]);
                 return `<td>${value}</td>`;
             }).join('');
             const actions = options.renderActions ? `<td class="row-actions">${options.renderActions(item)}</td>` : '';

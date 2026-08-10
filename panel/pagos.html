@@ -15,7 +15,7 @@
 <script type="module">
     import { api, getToken, goToLogin, panelRoot } from './js/api.js';
     import { renderShell } from './js/shell.js';
-    import { createDataTable } from './js/components/dataTable.js';
+    import { createDataTable, escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
 
     if (!getToken()) { goToLogin(); }
@@ -36,8 +36,8 @@
         defaultSortKey: 'dueDate',
         defaultSortDir: 'desc',
         columns: [
-            { key: 'user', label: 'Colono', sortable: true, render: (i) => i.user.name || '—' },
-            { key: 'numOficial', label: 'Propiedad', sortable: true, render: (i) => `${i.property.street.name || ''} #${i.property.numOficial}` },
+            { key: 'user', label: 'Colono', sortable: true, render: (i) => escapeHtml(i.user.name) || '—' },
+            { key: 'numOficial', label: 'Propiedad', sortable: true, render: (i) => `${escapeHtml(i.property.street.name)} #${Number(i.property.numOficial)}` },
             { key: 'amount', label: 'Monto', sortable: true, render: (i) => `$${Number(i.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` },
             { key: 'dueDate', label: 'Vencimiento', sortable: true, render: (i) => (i.dueDate || '').slice(0, 10) },
             { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge">${STATUS_LABEL[i.status] || i.status}</span>` },
@@ -70,7 +70,7 @@
                 <div class="panel-modal">
                     <h2>Registrar pago</h2>
                     <p>¿Confirmas marcar como <strong>pagado</strong> el adeudo de
-                       <strong>${item ? item.user.name : ''}</strong>
+                       <strong>${item ? escapeHtml(item.user.name) : ''}</strong>
                        (${item ? `$${Number(item.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : ''})?
                        Esta acción no se puede deshacer desde aquí.</p>
                     <div class="panel-modal-actions">
