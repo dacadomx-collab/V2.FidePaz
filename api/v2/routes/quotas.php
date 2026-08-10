@@ -669,6 +669,14 @@ function handle_quota_filter(): void
     $offset = ($page - 1) * $pageSize;
     $order = strtoupper((string) ($_GET['order'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
 
+    // sortKey/sortDir (2026-08-10, panel nuevo): whitelist estricta,
+    // aditivo sobre el `order` legado (que el bundle Angular viejo sigue
+    // usando, siempre sobre `name`) -- si no viene sortKey, el
+    // comportamiento previo no cambia.
+    $sortColumns = ['name' => 'name', 'cost' => 'cost'];
+    $sortKey = $sortColumns[$_GET['sortKey'] ?? ''] ?? 'name';
+    $sortDir = isset($_GET['sortKey']) ? ((($_GET['sortDir'] ?? '') === 'desc') ? 'DESC' : 'ASC') : $order;
+
     $where = ['1=1'];
     $params = [];
     if (!empty($_GET['name'])) {
@@ -683,7 +691,7 @@ function handle_quota_filter(): void
 
     $stmt = $pdo->prepare(
         "SELECT id, name, cost FROM quota WHERE " . implode(' AND ', $where) . "
-         ORDER BY name {$order}
+         ORDER BY {$sortKey} {$sortDir}
          LIMIT :limit OFFSET :offset"
     );
     foreach ($params as $key => $value) {
