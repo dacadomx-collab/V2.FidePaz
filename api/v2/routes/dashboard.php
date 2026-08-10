@@ -49,6 +49,18 @@ function handle_dashboard_summary(): void
         'SELECT COUNT(*) FROM property WHERE deleteAt IS NULL'
     )->fetchColumn();
 
+    // Agregados 2026-08-10 (parte 10) para la infografía Chart.js del
+    // dashboard: conteo real de colonos activos y de cuotas pagadas (vs
+    // `cuotasVencidas` ya existente) para la gráfica de barras "al día vs
+    // en mora".
+    $totalColonos = (int) $pdo->query(
+        'SELECT COUNT(*) FROM `user` WHERE deleteAt IS NULL'
+    )->fetchColumn();
+
+    $cuotasPagadasCount = (int) $pdo->query(
+        'SELECT COUNT(*) FROM user_quotas WHERE status = 2'
+    )->fetchColumn();
+
     Response::json(200, [
         'status' => 'ok',
         'data' => [
@@ -59,6 +71,8 @@ function handle_dashboard_summary(): void
             'colonosMorosos' => $colonosMorosos,
             'cuotasDelMes' => $cuotasDelMes,
             'propiedadesActivas' => $propiedadesActivas,
+            'totalColonos' => $totalColonos,
+            'cuotasPagadasCount' => $cuotasPagadasCount,
         ],
     ]);
 }

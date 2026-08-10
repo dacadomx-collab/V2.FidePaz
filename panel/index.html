@@ -7,6 +7,21 @@
     <link rel="icon" href="../favicon.ico">
     <link rel="stylesheet" href="../assets/css/main.css">
     <link rel="stylesheet" href="panel.css">
+    <style>
+        .dashboard-charts {
+            margin-top: var(--space-md);
+        }
+
+        .dashboard-chart-card {
+            position: relative;
+            height: 320px;
+        }
+
+        .dashboard-chart-card h3 {
+            margin: 0 0 var(--space-sm);
+            font-size: 1.05rem;
+        }
+    </style>
 </head>
 <body>
 
@@ -20,27 +35,39 @@
 
     const content = renderShell('inicio', 'Inicio');
 
-    // 4 tarjetas fijas con esqueleto de carga -- se reemplazan por los
-    // valores reales cuando responde GET /dashboard/summary, sin spinners.
+    // 4 tarjetas + 2 gráficas, todo con esqueleto de carga -- se reemplaza
+    // por valores reales cuando responde GET /dashboard/summary, sin
+    // spinners infinitos.
     content.innerHTML = `
         <div class="arf-grid" id="kpi-grid">
             <div class="card metric-card card-success arf-col-3">
                 <p class="metric-value"><span class="skeleton-bar"></span></p>
-                <p class="metric-label">Total recaudado (histórico)</p>
+                <p class="metric-label">Recaudación histórica</p>
                 <div class="dashboard-subvalue"><span class="skeleton-bar skeleton-sm"></span></div>
             </div>
             <div class="card metric-card card-danger arf-col-3">
                 <p class="metric-value"><span class="skeleton-bar"></span></p>
-                <p class="metric-label">Total pendiente</p>
-            </div>
-            <div class="card metric-card card-warning arf-col-3">
-                <p class="metric-value"><span class="skeleton-bar"></span></p>
-                <p class="metric-label">Cuotas vencidas</p>
-                <div class="dashboard-subvalue"><span class="skeleton-bar skeleton-sm"></span> colonos morosos</div>
+                <p class="metric-label">Cartera pendiente</p>
             </div>
             <div class="card metric-card card-info arf-col-3">
                 <p class="metric-value"><span class="skeleton-bar"></span></p>
-                <p class="metric-label">Propiedades indexadas</p>
+                <p class="metric-label">Padrón de colonos</p>
+                <div class="dashboard-subvalue"><span class="skeleton-bar skeleton-sm"></span> propiedades</div>
+            </div>
+            <div class="card metric-card card-warning arf-col-3">
+                <p class="metric-value"><span class="skeleton-bar"></span></p>
+                <p class="metric-label">Colonos morosos</p>
+                <div class="dashboard-subvalue"><span class="skeleton-bar skeleton-sm"></span> cuotas vencidas</div>
+            </div>
+        </div>
+        <div class="arf-grid dashboard-charts">
+            <div class="card arf-col-2 dashboard-chart-card">
+                <h3>% de cartera cobrada</h3>
+                <canvas id="chartCobranza"></canvas>
+            </div>
+            <div class="card arf-col-2 dashboard-chart-card">
+                <h3>Cuotas al día vs. en mora</h3>
+                <canvas id="chartEstadoCuotas"></canvas>
             </div>
         </div>
     `;
@@ -49,29 +76,43 @@
         return '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function fmtInt(n) {
+        return Number(n).toLocaleString('es-MX');
+    }
+
     api.get('/dashboard/summary').then((res) => {
         const d = res.data;
         const grid = document.getElementById('kpi-grid');
         grid.innerHTML = `
             <div class="card metric-card card-success arf-col-3">
                 <p class="metric-value">${fmtMoney(d.totalPagadoHistorico)}</p>
-                <p class="metric-label">Total recaudado (histórico)</p>
+                <p class="metric-label">Recaudación histórica</p>
                 <div class="dashboard-subvalue">${fmtMoney(d.totalPagadoMesActual)} este mes</div>
             </div>
             <div class="card metric-card card-danger arf-col-3">
                 <p class="metric-value">${fmtMoney(d.totalPendiente)}</p>
-                <p class="metric-label">Total pendiente</p>
-            </div>
-            <div class="card metric-card card-warning arf-col-3">
-                <p class="metric-value">${Number(d.cuotasVencidas).toLocaleString('es-MX')}</p>
-                <p class="metric-label">Cuotas vencidas</p>
-                <div class="dashboard-subvalue">${Number(d.colonosMorosos).toLocaleString('es-MX')} colonos morosos</div>
+                <p class="metric-label">Cartera pendiente</p>
             </div>
             <div class="card metric-card card-info arf-col-3">
-                <p class="metric-value">${Number(d.propiedadesActivas).toLocaleString('es-MX')}</p>
-                <p class="metric-label">Propiedades indexadas</p>
+                <p class="metric-value">${fmtInt(d.totalColonos)}</p>
+                <p class="metric-label">Padrón de colonos</p>
+                <div class="dashboard-subvalue">${fmtInt(d.propiedadesActivas)} propiedades</div>
+            </div>
+            <div class="card metric-card card-warning arf-col-3">
+                <p class="metric-value">${fmtInt(d.colonosMorosos)}</p>
+                <p class="metric-label">Colonos morosos</p>
+                <div class="dashboard-subvalue">${fmtInt(d.cuotasVencidas)} cuotas vencidas</div>
             </div>
         `;
+
+        loadChartJs().then(() => {
+            renderCobranzaChart(d.totalPagadoHistorico, d.totalPendiente);
+            renderEstadoCuotasChart(d.cuotasPagadasCount, d.cuotasVencidas);
+        }).catch(() => {
+            document.querySelectorAll('.dashboard-chart-card').forEach((card) => {
+                card.innerHTML += '<p class="dashboard-error">No se pudo cargar Chart.js.</p>';
+            });
+        });
     }).catch((err) => {
         document.getElementById('kpi-grid').innerHTML = `
             <div class="dashboard-error" style="width:100%;">
@@ -79,7 +120,65 @@
                 <button type="button" class="btn btn-outline" onclick="location.reload()">Reintentar</button>
             </div>
         `;
+        document.querySelector('.dashboard-charts').innerHTML = '';
     });
+
+    let chartJsPromise = null;
+    function loadChartJs() {
+        if (window.Chart) { return Promise.resolve(); }
+        if (chartJsPromise) { return chartJsPromise; }
+        chartJsPromise = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
+            script.onload = () => resolve();
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+        return chartJsPromise;
+    }
+
+    function renderCobranzaChart(pagado, pendiente) {
+        const ctx = document.getElementById('chartCobranza');
+        if (!ctx) { return; }
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Cobrado', 'Pendiente'],
+                datasets: [{
+                    data: [Number(pagado), Number(pendiente)],
+                    backgroundColor: ['#0e9f6e', '#d32f2f'],
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } },
+            },
+        });
+    }
+
+    function renderEstadoCuotasChart(alDia, enMora) {
+        const ctx = document.getElementById('chartEstadoCuotas');
+        if (!ctx) { return; }
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Al día', 'En mora'],
+                datasets: [{
+                    label: 'Cuotas',
+                    data: [Number(alDia), Number(enMora)],
+                    backgroundColor: ['#0e9f6e', '#d97706'],
+                    borderRadius: 6,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } },
+            },
+        });
+    }
 </script>
 </body>
 </html>

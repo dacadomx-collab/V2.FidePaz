@@ -744,19 +744,20 @@ video {
 .hero-slider {
     position: relative;
     overflow: hidden;
-    min-height: 60vh;
+    /* Encuadre profesional fijo (2026-08-10): 500px en escritorio, con
+       recorte responsivo en móvil para no desperdiciar media pantalla en
+       una imagen decorativa dentro de una ventana angosta. */
+    height: 500px;
     display: flex;
-    /* flex-direction:column (2026-08-10, corrección de bug real): sin esto
-       .hero-overlay (título+botones) y .hero-slider-dots caían en fila
-       (default de flex) en vez de apilarse verticalmente -- el bloque de
-       texto ancho comprimía los puntos del slider contra los botones de
-       llamada a la acción, dando la apariencia de "botones superpuestos"
-       reportada en inspección de campo. Los botones en sí (enlaces al
-       portal y a contacto) no se eliminaron -- son la llamada a la acción
-       principal de la landing, el problema real era este layout. */
     flex-direction: column;
     align-items: center;
     justify-content: center;
+}
+
+@media (max-width: 640px) {
+    .hero-slider {
+        height: 320px;
+    }
 }
 
 .hero-slider-track {
@@ -780,6 +781,7 @@ video {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
 }
 
 .hero-slide::after {
