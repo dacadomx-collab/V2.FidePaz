@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Propiedades — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { createDataTable } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('propiedades', 'Propiedades');
+
+    content.innerHTML = `
+        <div style="margin-bottom:1rem;">
+            <button type="button" class="btn" id="btn-nuevo">+ Nueva propiedad</button>
+        </div>
+        <div id="table-mount"></div>
+        <div id="modal-mount"></div>
+    `;
+
+    const tableMount = document.getElementById('table-mount');
+    const modalMount = document.getElementById('modal-mount');
+
+    // /property/filter no expone un GET /property/{id} real -- se guarda
+    // en memoria lo último cargado en la tabla para prellenar el
+    // formulario de edición, igual que en propietarios.html.
+    const rowsById = new Map();
+
+    function currentOwnerName(item) {
+        const uq = item.userquotas && item.userquotas[0];
+        return uq && uq.user ? uq.user.name : '—';
+    }
+
+    const table = createDataTable(tableMount, {
+        searchPlaceholder: 'Buscar por número oficial o calle…',
+        emptyMessage: 'No hay propiedades registradas con ese criterio.',
+        defaultSortKey: 'street',
+        columns: [
+            { key: 'street', label: 'Calle', sortable: true, render: (i) => i.street.name || '—' },
+            { key: 'numOficial', label: 'N.º oficial', sortable: true },
+            { key: 'quota', label: 'Cuota', sortable: true, render: (i) => i.quota.name ? `${i.quota.name} ($${Number(i.quota.cost).toLocaleString('es-MX')})` : '—' },
+            { key: 'dueDay', label: 'Día de pago', sortable: true },
+            { key: 'owner', label: 'Propietario actual', render: currentOwnerName },
+        ],
+        renderActions: (item) => `
+            <button type="button" data-action="edit" title="Editar">✏️</button>
+            <button type="button" data-action="delete" title="Eliminar">🗑️</button>
+        `,
+        fetchPage: async ({ search, sortKey, sortDir, page }) => {
+            const data = await api.get('/property/filter', { name: search, sortKey, sortDir, page });
+            data.items.forEach((item) => rowsById.set(String(item.id), item));
+            return { items: data.items, meta: data.meta };
+        },
+    });
+
+    tableMount.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action]');
+        if (!btn) { return; }
+        const id = btn.closest('tr').dataset.id;
+        if (btn.dataset.action === 'edit') { openForm(id); }
+        if (btn.dataset.action === 'delete') { confirmDelete(id); }
+    });
+
+    document.getElementById('btn-nuevo').addEventListener('click', () => openForm(null));
+
+    function closeModal() {
+        modalMount.innerHTML = '';
+    }
+
+    async function loadStreetOptions(selectedId) {
+        const streets = await api.get('/property/streets');
+        return streets.map((s) => `<option value="${s.id}" ${String(s.id) === String(selectedId) ? 'selected' : ''}>${s.name}</option>`).join('');
+    }
+
+    async function loadQuotaOptions(selectedId) {
+        const data = await api.get('/quota', { page: 1 });
+        return data.items.map((q) => `<option value="${q.id}" ${String(q.id) === String(selectedId) ? 'selected' : ''}>${q.name} ($${Number(q.cost).toLocaleString('es-MX')})</option>`).join('');
+    }
+
+    async function loadOwnerOptions() {
+        const owners = await api.get('/user/byterm');
+        return owners.map((u) => `<option value="${u.id}">${u.name} (${u.code || 'sin código'})</option>`).join('');
+    }
+
+    async function openForm(id) {
+        const item = id ? rowsById.get(String(id)) : null;
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>${id ? 'Editar propiedad' : 'Nueva propiedad'}</h2>
+                    <form id="property-form">
+                        <div class="panel-form-field">
+                            <label for="f-num">Número oficial</label>
+                            <input type="number" id="f-num" required value="${item ? item.numOficial : ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-street">Calle</label>
+                            <select id="f-street" required><option value="">Cargando…</option></select>
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-quota">Tipo de cuota</label>
+                            <select id="f-quota" required><option value="">Cargando…</option></select>
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-day">Día de pago (1-31)</label>
+                            <input type="number" id="f-day" min="1" max="31" required value="${item ? item.dueDay : 1}">
+                        </div>
+                        ${!id ? `
+                        <div class="panel-form-field">
+                            <label for="f-owner">Propietario inicial</label>
+                            <select id="f-owner" required><option value="">Cargando…</option></select>
+                        </div>` : `
+                        <p style="color:var(--color-text-muted);font-size:0.85rem;">
+                            El propietario actual (${currentOwnerName(item)}) no se reasigna desde aquí — la propiedad
+                            conserva su historial de cuotas. Para cambiar de dueño usa el módulo de Cuotas.
+                        </p>`}
+                        <div class="panel-modal-actions">
+                            <button type="button" class="btn btn-outline" id="btn-cancel">Cancelar</button>
+                            <button type="submit" class="btn">Guardar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('btn-cancel').addEventListener('click', closeModal);
+
+        const streetSelect = document.getElementById('f-street');
+        const quotaSelect = document.getElementById('f-quota');
+        loadStreetOptions(item ? item.street.id : null).then((html) => { streetSelect.innerHTML = html; });
+        loadQuotaOptions(item ? item.quota.id : null).then((html) => { quotaSelect.innerHTML = html; });
+        if (!id) {
+            loadOwnerOptions().then((html) => { document.getElementById('f-owner').innerHTML = html; });
+        }
+
+        document.getElementById('property-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const payload = {
+                numOficial: Number(document.getElementById('f-num').value),
+                streetId: Number(streetSelect.value),
+                quotaId: Number(quotaSelect.value),
+                day: Number(document.getElementById('f-day').value),
+            };
+            if (!id) {
+                payload.ownerId = Number(document.getElementById('f-owner').value);
+            }
+
+            try {
+                if (id) {
+                    await api.put(`/property/update/${id}`, payload);
+                    toast('Propiedad actualizada.');
+                } else {
+                    await api.post('/property/create', payload);
+                    toast('Propiedad creada.');
+                }
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    function confirmDelete(id) {
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Eliminar propiedad</h2>
+                    <p>Esta acción no se puede deshacer. ¿Confirmas eliminar este registro?</p>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="btn-cancel-delete">Cancelar</button>
+                        <button type="button" class="btn" id="btn-confirm-delete">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('btn-cancel-delete').addEventListener('click', closeModal);
+        document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+            try {
+                await api.del(`/property/delete/${id}`);
+                toast('Propiedad eliminada.');
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+</script>
+</body>
+</html>

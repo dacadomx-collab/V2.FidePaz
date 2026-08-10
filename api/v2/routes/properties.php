@@ -87,6 +87,19 @@ function handle_properties_filter(): void
         $params['status_code'] = $statusCode;
     }
 
+    // Orden por encabezado de columna (2026-08-10, panel nuevo): mismo
+    // patrón de whitelist estricta que /user/filter -- nunca se interpola
+    // el valor crudo de $_GET en el SQL.
+    $sortColumns = [
+        'numOficial' => 'p.numOficial',
+        'street' => 's.name',
+        'quota' => 'q.name',
+        'dueDay' => 'p.due_day',
+    ];
+    $sortKey = $sortColumns[$_GET['sortKey'] ?? ''] ?? null;
+    $sortDir = (($_GET['sortDir'] ?? '') === 'desc') ? 'DESC' : 'ASC';
+    $orderBy = $sortKey ? ($sortKey . ' ' . $sortDir) : 's.name, p.numOficial';
+
     $pdo = Database::connection();
 
     $countStmt = $pdo->prepare(
@@ -102,7 +115,7 @@ function handle_properties_filter(): void
             LEFT JOIN street s ON s.id = p.street_id
             LEFT JOIN quota  q ON q.id = p.quota_id
             WHERE ' . implode(' AND ', $where) . '
-            ORDER BY s.name, p.numOficial
+            ORDER BY ' . $orderBy . '
             LIMIT :limit OFFSET :offset';
     $stmt = $pdo->prepare($sql);
     foreach ($params as $key => $value) {
