@@ -80,8 +80,12 @@
                 <p class="metric-label">Peso de framework de frontend en el panel nuevo (HTML/CSS/JS nativo, sin build ni dependencias de terceros)</p>
             </div>
             <div class="card metric-card arf-col-4">
-                <p class="metric-value">8/8</p>
+                <p class="metric-value">9/9</p>
                 <p class="metric-label">Fases de reconstrucción del panel completadas y verificadas en vivo (2026-08-10)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">100%</p>
+                <p class="metric-label">Navegación administrativa corriendo sobre <code>/panel/</code> — cero rutas del bundle Angular alcanzables</p>
             </div>
         </div>
     </section>
@@ -170,8 +174,8 @@
                 <p>Cada módulo se desplegó y verificó en vivo (login real, JWT real, CRUD real sobre datos desechables) contra el bundle viejo activo como red de seguridad, antes de retirar el punto de entrada. Cero interrupción de servicio durante la migración.</p>
             </div>
             <div class="card arf-col-3">
-                <h3>Corte final reversible</h3>
-                <p><code>/administrator/</code> redirige (302) a <code>/panel/login.html</code>; el bundle Angular permanece en el servidor como respaldo alcanzable solo por URL profunda, no como punto de entrada — reversible sin nuevo despliegue si hiciera falta.</p>
+                <h3>Desmantelamiento total (Fase 9)</h3>
+                <p>Toda ruta bajo <code>/administrator/*</code> — incluidas las rutas profundas del bundle viejo (<code>/home/quotas</code>, <code>/home/owners</code>, etc.) y los propios chunks compilados — redirige (302) a su equivalente real en <code>/panel/</code>. Los archivos del bundle Angular no se borraron del servidor (evita el riesgo de un borrado remoto no selectivo que pudiera afectar archivos reales no versionados, como <code>.env</code>), pero quedan 100% inalcanzables por HTTP: cero bytes servidos, cero ejecución.</p>
             </div>
         </div>
     </section>

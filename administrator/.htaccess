@@ -31,34 +31,58 @@
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 	# ---------------------------------------------------------------
-	# Fase 8 (2026-08-10): retiro del punto de entrada del panel Angular
-	# heredado de V1 -- /panel/ (HTML/CSS/JS propio, sin build, verificado
-	# en vivo módulo por módulo) es ahora el panel real. Va DESPUÉS del
-	# forzado de HTTPS de arriba a propósito (si fuera antes, un request
-	# http:// se redirigiría a /panel/login.html todavía en http, sin
-	# pasar por el forzado a https). Solo se redirige la RAÍZ exacta
-	# (/administrator/ o /administrator/index.html), no cualquier ruta
-	# profunda -- un bookmark viejo tipo /administrator/home/users/index
-	# sigue sirviendo el bundle Angular (fallback SPA de abajo intacto)
-	# como red de seguridad reversible mientras se confirma el cambio con
-	# uso real. 302 (no 301) a propósito: reversible sin esperar caché de
-	# navegador/DNS si hiciera falta revertir. Los archivos del bundle NO
-	# se borraron del servidor (este pipeline de FTP no elimina remotos)
-	# -- quedan como "código muerto" alcanzable solo por URL profunda
-	# directa, no como punto de entrada real.
-	RewriteCond %{REQUEST_URI} ^/administrator/?$ [OR]
-	RewriteCond %{REQUEST_URI} ^/administrator/index\.html$
-	RewriteRule ^ /panel/login.html [R=302,L]
+	# Fase 9 (2026-08-10): desmantelamiento total del bundle Angular
+	# heredado de V1 como punto de entrada. Ampliación de la Fase 8
+	# (que solo redirigía la raíz exacta): ahora CUALQUIER ruta bajo
+	# /administrator/ redirige a /panel/ -- ya no hay ninguna ruta
+	# profunda (bookmarks tipo /administrator/home/quotas/index) que
+	# siga sirviendo el bundle viejo. Mapeo específico primero (más
+	# específico antes que más genérico, mod_rewrite usa el primer
+	# match), catch-all al final para cualquier otra cosa bajo
+	# /administrator/ -- incluidos los propios chunks compilados
+	# (main.*.js, polyfills.*.js, etc.): con esto interceptados ANTES
+	# de la regla de "servir archivo real" de más abajo, esos archivos
+	# quedan físicamente en el servidor (este pipeline de FTP no borra
+	# remotos, y forzar el borrado -- dangerous-clean-slate -- se evitó
+	# a propósito: borraría también archivos reales no versionados que
+	# SÍ deben seguir en el servidor, como .env) pero 100% inalcanzables
+	# por HTTP -- cero bytes servidos, cero ejecución, purga funcional
+	# equivalente a un borrado sin el riesgo de un borrado real.
+	# Confirmado por auditoría (2026-08-10): "administrator/api/" NUNCA
+	# fue una ruta real -- la API real vive en /api/v2/ (raíz del
+	# dominio); lo que devolvía 200 ahí era el fallback SPA de Angular
+	# disfrazando un 404 (Content-Type text/html, era el propio
+	# index.html). La antigua regla de exención "RewriteCond
+	# %{REQUEST_URI} ^/api/" tampoco funcionaba nunca -- REQUEST_URI
+	# siempre incluye el prefijo completo /administrator/, jamás
+	# empieza en /api/ -- se retira por ser código muerto que nunca
+	# tuvo efecto real.
+	RewriteCond %{REQUEST_URI} ^/administrator/home/owners/resume
+	RewriteRule ^ /panel/mi-cuenta.html [R=302,L]
 
-	# ---------------------------------------------------------------
-	# API v2.0: /api/* vive físicamente en administrator/api/ (mismo
-	# origen que el frontend -> cero CORS cross-origin, cero dependencia
-	# de red externa/Cloud Run). Aquí solo se exime del fallback SPA;
-	# el enrutamiento real (/api/auth/login -> index.php) lo resuelve
-	# administrator/api/.htaccess al descender Apache a ese directorio.
-	# ---------------------------------------------------------------
-	RewriteCond %{REQUEST_URI} ^/api/
-	RewriteRule ^ - [L]
+	RewriteCond %{REQUEST_URI} ^/administrator/home/quotas
+	RewriteRule ^ /panel/cuotas.html [R=302,L]
+
+	RewriteCond %{REQUEST_URI} ^/administrator/home/owners
+	RewriteRule ^ /panel/propietarios.html [R=302,L]
+
+	RewriteCond %{REQUEST_URI} ^/administrator/home/properties
+	RewriteRule ^ /panel/propiedades.html [R=302,L]
+
+	RewriteCond %{REQUEST_URI} ^/administrator/home/payments
+	RewriteRule ^ /panel/pagos.html [R=302,L]
+
+	RewriteCond %{REQUEST_URI} ^/administrator/home/reports
+	RewriteRule ^ /panel/reportes.html [R=302,L]
+
+	RewriteCond %{REQUEST_URI} ^/administrator/home/comunicados
+	RewriteRule ^ /panel/comunicados.html [R=302,L]
+
+	# Catch-all: cualquier otra ruta bajo /administrator/ (raíz, login,
+	# chunks compilados, rutas no mapeadas arriba) -> pantalla de login
+	# del panel nuevo.
+	RewriteCond %{REQUEST_URI} ^/administrator/
+	RewriteRule ^ /panel/login.html [R=302,L]
 
 	RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -f [OR]
 	RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -d
