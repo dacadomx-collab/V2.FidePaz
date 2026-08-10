@@ -52,7 +52,6 @@ export function renderShell(activeId, pageTitle) {
         <aside class="panel-sidebar">
             <div class="brand">
                 <img src="${root}../assets/img/fidepaz-logo.png" alt="FidePaz" onerror="this.style.display='none'">
-                <strong>FidePaz</strong>
             </div>
             <ul class="panel-nav">${buildNav(activeId, user ? user.role : null)}</ul>
         </aside>
@@ -61,6 +60,7 @@ export function renderShell(activeId, pageTitle) {
                 <h1>${pageTitle}</h1>
                 <div class="panel-user-chip">
                     <span>${user ? user.name : ''}</span>
+                    <button type="button" class="panel-theme-btn" id="panel-theme-toggle" aria-label="Cambiar modo día/noche"></button>
                     <button type="button" class="btn btn-outline" id="panel-logout-btn">Cerrar sesión</button>
                 </div>
             </div>
@@ -77,25 +77,26 @@ export function renderShell(activeId, pageTitle) {
         goToLogin();
     });
 
-    buildFloatingButtons();
+    document.getElementById('panel-theme-toggle').addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(THEME_KEY, next);
+        applyTheme(next);
+    });
+
+    buildScrollTopButton();
     initTheme();
 
     return document.getElementById('panel-content');
 }
 
-function buildFloatingButtons() {
-    if (document.getElementById('panel-theme-toggle')) { return; }
-
-    const themeBtn = document.createElement('button');
-    themeBtn.id = 'panel-theme-toggle';
-    themeBtn.type = 'button';
-    themeBtn.className = 'fp-float-btn fp-theme-btn';
-    themeBtn.setAttribute('aria-label', 'Cambiar modo día/noche');
-    themeBtn.addEventListener('click', () => {
-        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-        localStorage.setItem(THEME_KEY, next);
-        applyTheme(next);
-    });
+// Botón "subir arriba" (2026-08-10): único flotante que queda -- el
+// conmutador de tema se movió al navbar superior (ver renderShell) porque,
+// como overlay fijo en la esquina superior derecha de todo el viewport, le
+// caía encima al botón "Cerrar sesión" del topbar (reporte de campo
+// 2026-08-10). El scroll-top sigue como overlay porque no compite con
+// ningún control del navbar -- solo aparece tras bajar 300px.
+function buildScrollTopButton() {
+    if (document.getElementById('panel-scroll-top')) { return; }
 
     const topBtn = document.createElement('button');
     topBtn.id = 'panel-scroll-top';
@@ -105,7 +106,6 @@ function buildFloatingButtons() {
     topBtn.setAttribute('aria-label', 'Subir al inicio');
     topBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 
-    document.body.appendChild(themeBtn);
     document.body.appendChild(topBtn);
 
     window.addEventListener('scroll', () => {

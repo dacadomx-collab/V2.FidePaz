@@ -29,7 +29,7 @@
         <div class="container">
             <p class="eyebrow">Informe técnico · Dirección de Tecnología</p>
             <h1>Auditoría y Migración FidePaz V1 → V2.0</h1>
-            <p>Arquitectura, seguridad Zero Trust e integridad de datos — cifras verificadas contra el código y la base de datos de producción, 2026-08-05.</p>
+            <p>Arquitectura, seguridad Zero Trust e integridad de datos — cifras verificadas contra el código y la base de datos de producción. Actualizado 2026-08-10 con el cierre de la migración del panel administrativo.</p>
         </div>
     </section>
 
@@ -75,6 +75,14 @@
                 <p class="metric-value">8</p>
                 <p class="metric-label">Registros con corrupción UTF-8 (CP850) detectados y corregidos, con respaldo previo</p>
             </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">0 KB</p>
+                <p class="metric-label">Peso de framework de frontend en el panel nuevo (HTML/CSS/JS nativo, sin build ni dependencias de terceros)</p>
+            </div>
+            <div class="card metric-card arf-col-4">
+                <p class="metric-value">8/8</p>
+                <p class="metric-label">Fases de reconstrucción del panel completadas y verificadas en vivo (2026-08-10)</p>
+            </div>
         </div>
     </section>
 
@@ -88,10 +96,13 @@
         <p class="report-footer-note">
             <span class="badge-verified">✔ Verificado</span>
             Cifras tomadas de la auditoría de <code>wp_users</code> (dump de <code>mercagee_colonos</code>)
-            y del esquema real de <code>mercagee_v2_FidePaz_DB</code>. No se incluyen métricas de
-            tiempo de respuesta o consumo de recursos entre backends: no existe una medición real
-            comparable entre Go y PHP en este momento — se reportará cuando exista un benchmark
-            real, no antes.
+            y del esquema real de <code>mercagee_v2_FidePaz_DB</code>. Tiempo de respuesta real
+            medido en producción el 2026-08-10 (5 muestras, <code>curl -w %{time_total}</code>,
+            incluye red + TLS + verificación BCrypt): login <strong>~420-470 ms</strong>, listado
+            paginado con filtro <strong>~360-440 ms</strong>. No se publican cifras de "milisegundos
+            sub-1" ni comparativas Go-vs-PHP no medidas — el backend Go compilado sigue sin
+            exponerse en este hosting compartido, así que no hay nada real que comparar ahí
+            todavía.
         </p>
     </section>
 
@@ -111,14 +122,19 @@
             <div class="card arf-col-2">
                 <h3>V2.0 — Arquitectura actual</h3>
                 <p>
-                    Frontend Angular SPA (<code>/administrator</code>) + API REST bajo
-                    <code>/api/v2</code>. Base de datos consolidada desde <code>mercagee_colonoscore</code>
-                    (fuente real, 955 KB) hacia <code>mercagee_v2_FidePaz_DB</code>, con solo 6
-                    tablas de negocio. Backend Go 1.26 + Gin compilado como binario único
-                    (arquitectura objetivo); backend PHP 8.2 nativo como fallback activo en
-                    producción mientras el hosting compartido no soporte procesos persistentes
-                    propios — mismo contrato de API, misma seguridad. Actualizado desde PHP 7.4 a
-                    8.2 el 2026-08-05 (soporte de seguridad activo, versión con vida útil vigente).
+                    Frontend propio en <code>/panel</code> (HTML/CSS/JS nativo, sin build, sin
+                    framework de terceros) + API REST bajo <code>/api/v2</code>. Reemplaza al
+                    bundle Angular heredado de la V1 (<code>/administrator</code>, compilado, sin
+                    código fuente disponible), retirado como punto de entrada el 2026-08-10 tras
+                    8 fases de reconstrucción módulo por módulo, cada una verificada en vivo
+                    contra la API real antes de avanzar a la siguiente. Base de datos consolidada
+                    desde <code>mercagee_colonoscore</code> (fuente real, 955 KB) hacia
+                    <code>mercagee_v2_FidePaz_DB</code>, con solo 6 tablas de negocio. Backend Go
+                    1.26 + Gin compilado como binario único (arquitectura objetivo, sigue
+                    archivado sin exponer en este hosting compartido); backend PHP 8.2 nativo
+                    como el que realmente sirve producción hoy — mismo contrato de API, misma
+                    seguridad. Actualizado desde PHP 7.4 a 8.2 el 2026-08-05 (soporte de
+                    seguridad activo, versión con vida útil vigente).
                 </p>
             </div>
         </div>
@@ -143,6 +159,24 @@
     </section>
 
     <section class="container">
+        <h2>Migración del panel administrativo (2026-08-08 a 2026-08-10)</h2>
+        <div class="arf-grid">
+            <div class="card arf-col-3">
+                <h3>De bundle heredado a código propio</h3>
+                <p><code>/administrator</code> era, literalmente, el mismo bundle Angular compilado de la V1 (hash idéntico contra el respaldo) — nunca se había reconstruido. Reemplazado módulo por módulo (Propietarios, Propiedades, Cuotas, Pagos, Reportes, Comunicados, autoservicio del colono) por HTML/CSS/JS propio, sin build ni dependencias de terceros.</p>
+            </div>
+            <div class="card arf-col-3">
+                <h3>Rollout sin downtime</h3>
+                <p>Cada módulo se desplegó y verificó en vivo (login real, JWT real, CRUD real sobre datos desechables) contra el bundle viejo activo como red de seguridad, antes de retirar el punto de entrada. Cero interrupción de servicio durante la migración.</p>
+            </div>
+            <div class="card arf-col-3">
+                <h3>Corte final reversible</h3>
+                <p><code>/administrator/</code> redirige (302) a <code>/panel/login.html</code>; el bundle Angular permanece en el servidor como respaldo alcanzable solo por URL profunda, no como punto de entrada — reversible sin nuevo despliegue si hiciera falta.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container">
         <h2>Hitos de infraestructura recientes (2026-08-05)</h2>
         <div class="arf-grid">
             <div class="card arf-col-3">
@@ -162,7 +196,7 @@
 </main>
 
 <footer class="site-footer container">
-    <p>Informe generado a partir de auditoría técnica en vivo — FidePaz V2.0. Última verificación: 2026-08-05.</p>
+    <p>Informe generado a partir de auditoría técnica en vivo — FidePaz V2.0. Última verificación: 2026-08-10.</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>

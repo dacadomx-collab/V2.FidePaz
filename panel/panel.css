@@ -71,6 +71,11 @@
     flex: 1;
     min-width: 0;
     padding: var(--space-md);
+    /* Espacio de respeto al fondo (2026-08-10): sin esto, la paginación de
+       tablas con muchas páginas (Pagos, cientos de páginas) queda pegada al
+       borde inferior del viewport y el botón flotante "subir arriba"
+       (position:fixed) le cae encima. */
+    padding-bottom: calc(var(--space-lg) * 2);
 }
 
 .panel-topbar {
@@ -93,6 +98,29 @@
     gap: 0.5rem;
     font-size: 0.9rem;
     color: var(--color-text-muted);
+}
+
+/* Conmutador día/noche dentro del navbar (2026-08-10) -- ya no es un
+   overlay fijo (ver panel/js/shell.js), vive en línea junto a "Cerrar
+   sesión" para que nunca se le encimen. */
+.panel-theme-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: 1.05rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.panel-theme-btn:hover {
+    background-color: var(--color-bg-alt);
 }
 
 @media (max-width: 860px) {
@@ -369,14 +397,12 @@
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
 }
 
-.fp-theme-btn {
-    top: 1.25rem;
-    right: 1.25rem;
-}
-
 .fp-scroll-top-btn {
-    bottom: 1.5rem;
-    right: 1.25rem;
+    /* Valores de campo (2026-08-10, inspección visual reportada): margen
+       explícito para no encimarse con .panel-pagination. */
+    bottom: 35px;
+    right: 25px;
+    z-index: 1200;
     opacity: 0;
     pointer-events: none;
     transform: translateY(0.5rem);
