@@ -7,13 +7,21 @@ import { getActiveUser, clearSession, goToLogin, panelRoot } from './api.js';
 
 const THEME_KEY = 'fidepaz_admin_theme';
 
-const NAV_ITEMS = [
+const ADMIN_NAV_ITEMS = [
     { id: 'propietarios', label: 'Propietarios', href: 'propietarios.html', icon: '👤' },
     { id: 'propiedades', label: 'Propiedades', href: 'propiedades.html', icon: '🏠' },
     { id: 'cuotas', label: 'Cuotas', href: 'cuotas.html', icon: '💳' },
     { id: 'pagos', label: 'Pagos', href: 'pagos.html', icon: '🧾' },
     { id: 'reportes', label: 'Reportes', href: 'reportes.html', icon: '📊' },
     { id: 'comunicados', label: 'Comunicados', href: 'comunicados.html', icon: '📣' },
+];
+
+// Los colonos (role="owner") no tienen permiso en ninguna de las rutas de
+// arriba (Auth::requireRole las restringe a admin/super_admin en el
+// backend) -- mostrarles esos enlaces solo llevaría a un 403. Su único
+// destino real es su propia cuenta.
+const OWNER_NAV_ITEMS = [
+    { id: 'mi-cuenta', label: 'Mi cuenta', href: 'mi-cuenta.html', icon: '🏡' },
 ];
 
 function applyTheme(theme) {
@@ -28,8 +36,9 @@ function initTheme() {
     applyTheme(saved || (prefersDark ? 'dark' : 'light'));
 }
 
-function buildNav(activeId) {
-    return NAV_ITEMS.map((item) => {
+function buildNav(activeId, role) {
+    const items = role === 'owner' ? OWNER_NAV_ITEMS : ADMIN_NAV_ITEMS;
+    return items.map((item) => {
         const activeClass = item.id === activeId ? ' active' : '';
         return `<li><a class="${activeClass.trim()}" href="${item.href}">${item.icon} ${item.label}</a></li>`;
     }).join('');
@@ -45,7 +54,7 @@ export function renderShell(activeId, pageTitle) {
                 <img src="${root}../assets/img/fidepaz-logo.png" alt="FidePaz" onerror="this.style.display='none'">
                 <strong>FidePaz</strong>
             </div>
-            <ul class="panel-nav">${buildNav(activeId)}</ul>
+            <ul class="panel-nav">${buildNav(activeId, user ? user.role : null)}</ul>
         </aside>
         <main class="panel-main">
             <div class="panel-topbar">

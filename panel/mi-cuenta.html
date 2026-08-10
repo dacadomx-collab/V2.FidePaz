@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mi cuenta — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        .mc-summary {
+            display: flex;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+            flex-wrap: wrap;
+        }
+
+        .mc-summary .eoc-card {
+            background-color: var(--color-bg-alt);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            padding: var(--space-sm) var(--space-md);
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .mc-summary .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .mc-summary .label {
+            color: var(--color-text-muted);
+            font-size: 0.82rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin, getActiveUser, panelRoot } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { escapeHtml } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const user = getActiveUser();
+    const content = renderShell('mi-cuenta', 'Mi cuenta');
+    const reportHref = panelRoot() + '../reportes/estado-de-cuenta.html';
+
+    content.innerHTML = `
+        <div class="mc-summary">
+            <div class="eoc-card"><div class="value" id="mc-paid">—</div><div class="label">Total pagado</div></div>
+            <div class="eoc-card"><div class="value" id="mc-pending">—</div><div class="label">Saldo pendiente</div></div>
+        </div>
+        <div style="margin-bottom:1rem;display:flex;gap:0.6rem;flex-wrap:wrap;">
+            <a class="btn" target="_blank" href="${reportHref}">Ver estado de cuenta elegante</a>
+            <button type="button" class="btn btn-outline" id="btn-privacy">Aceptar aviso de privacidad</button>
+        </div>
+        <div class="panel-table-wrap">
+            <table class="panel-table">
+                <thead><tr><th>Propiedad</th><th>Vencimiento</th><th>Monto</th><th>Estatus</th></tr></thead>
+                <tbody id="mc-tbody"><tr><td colspan="4" class="panel-empty-state">Cargando…</td></tr></tbody>
+            </table>
+        </div>
+    `;
+
+    document.getElementById('btn-privacy').addEventListener('click', async () => {
+        try {
+            await api.put('/user/update-privacy', {});
+            toast('Aviso de privacidad aceptado.');
+        } catch (err) {
+            toast(err.message, { type: 'error' });
+        }
+    });
+
+    const STATUS_LABEL = { 1: 'Pendiente', 2: 'Pagado' };
+
+    api.get('/payment/owners').then((data) => {
+        const items = data.items || [];
+        const tbody = document.getElementById('mc-tbody');
+
+        let totalPaid = 0;
+        let totalPending = 0;
+        items.forEach((q) => {
+            const amount = Number(q.amount) || 0;
+            if (Number(q.status) === 2) { totalPaid += amount; } else { totalPending += amount; }
+        });
+        document.getElementById('mc-paid').textContent = `$${totalPaid.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+        document.getElementById('mc-pending').textContent = `$${totalPending.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="panel-empty-state">No hay cuotas registradas todavía.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = items.map((q) => `
+            <tr>
+                <td>${escapeHtml(q.property.street.name)} #${Number(q.property.numOficial)}</td>
+                <td>${(q.dueDate || '').slice(0, 10)}</td>
+                <td>$${Number(q.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                <td><span class="panel-badge">${STATUS_LABEL[q.status] || q.status}</span></td>
+            </tr>
+        `).join('');
+    }).catch((err) => {
+        document.getElementById('mc-tbody').innerHTML = `<tr><td colspan="4" class="panel-empty-state">${escapeHtml(err.message)}</td></tr>`;
+    });
+</script>
+</body>
+</html>
