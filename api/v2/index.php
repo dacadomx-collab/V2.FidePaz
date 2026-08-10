@@ -86,12 +86,14 @@ try {
     require __DIR__ . '/core/RateLimit.php';
     require __DIR__ . '/core/Xlsx.php';
     require __DIR__ . '/core/Audit.php';
+    require __DIR__ . '/core/Mailer.php';
     require __DIR__ . '/routes/auth.php';
     require __DIR__ . '/routes/properties.php';
     require __DIR__ . '/routes/quotas.php';
     require __DIR__ . '/routes/users.php';
     require __DIR__ . '/routes/contact.php';
     require __DIR__ . '/routes/announcements.php';
+    require __DIR__ . '/routes/dashboard.php';
 } catch (\Throwable $e) {
     error_log('[fidepaz_v2] Fallo cargando módulos internos: ' . $e->getMessage());
     fidepaz_json_fail(500, 'Error interno del servidor (carga de módulos)', $e);
@@ -169,6 +171,10 @@ try {
         handle_quota_delete((int) $m[1]);
     } elseif ($method === 'GET' && preg_match('#^/quota/(\d+)/history$#', $path, $m)) {
         handle_quota_history((int) $m[1]);
+    } elseif ($method === 'POST' && $path === '/quota/generate-period') {
+        handle_quota_generate_period();
+    } elseif ($method === 'GET' && $path === '/dashboard/summary') {
+        handle_dashboard_summary();
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
         // Ruta REAL que usa la pantalla "Estado de cuenta por propietario".
         handle_payment_list_owners();

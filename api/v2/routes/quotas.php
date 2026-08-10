@@ -847,6 +847,131 @@ function handle_quota_history(int $id): void
 }
 
 /**
+ * POST /quota/generate-period { "period": "YYYY-MM", "dryRun": bool }
+ * (admin/super_admin) — Propuesta de valor #1 aprobada 2026-08-10:
+ * genera la cuota del período para cada propiedad activa que aún no la
+ * tenga. Idempotente: una propiedad ya cubierta para ese período (existe
+ * un user_quotas con due_date dentro del mes) se salta, así que correrlo
+ * dos veces para el mismo período no duplica nada -- se puede reintentar
+ * sin miedo. `dryRun: true` corre exactamente la misma lógica pero sin
+ * el INSERT final, para poder ver el resultado antes de comprometerse.
+ *
+ * Determinación del propietario: usa el `user_id` del `user_quotas` más
+ * reciente de esa propiedad (mismo criterio que ya usa
+ * panel/propiedades.html para mostrar "Propietario actual" -- `property`
+ * no tiene FK directa a colono, la relación es histórica vía
+ * `user_quotas`). Una propiedad sin ningún historial de cuotas no se
+ * puede facturar sola -- se reporta en `skippedNoOwner` para asignación
+ * manual, no se inventa un dueño.
+ */
+function handle_quota_generate_period(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    $body = json_decode(file_get_contents('php://input') ?: '', true) ?? [];
+    $period = (string) ($body['period'] ?? '');
+    $dryRun = !empty($body['dryRun']);
+
+    if (!preg_match('#^\d{4}-(0[1-9]|1[0-2])$#', $period)) {
+        Response::error(400, 'period es obligatorio, formato YYYY-MM');
+    }
+
+    $pdo = Database::connection();
+
+    $properties = $pdo->query(
+        'SELECT id, quota_id, due_day FROM property WHERE deleteAt IS NULL AND quota_id IS NOT NULL'
+    )->fetchAll();
+
+    $created = [];
+    $skippedExisting = [];
+    $skippedNoOwner = [];
+
+    if (!$dryRun) {
+        $pdo->beginTransaction();
+    }
+
+    try {
+        foreach ($properties as $property) {
+            $propertyId = (int) $property['id'];
+
+            $existsStmt = $pdo->prepare(
+                "SELECT id FROM user_quotas WHERE property_id = ? AND DATE_FORMAT(due_date, '%Y-%m') = ? LIMIT 1"
+            );
+            $existsStmt->execute([$propertyId, $period]);
+            if ($existsStmt->fetchColumn() !== false) {
+                $skippedExisting[] = $propertyId;
+                continue;
+            }
+
+            $ownerStmt = $pdo->prepare(
+                'SELECT user_id FROM user_quotas WHERE property_id = ? AND user_id IS NOT NULL ORDER BY due_date DESC LIMIT 1'
+            );
+            $ownerStmt->execute([$propertyId]);
+            $ownerId = $ownerStmt->fetchColumn();
+            if ($ownerId === false) {
+                $skippedNoOwner[] = $propertyId;
+                continue;
+            }
+
+            $quotaStmt = $pdo->prepare('SELECT cost FROM quota WHERE id = ?');
+            $quotaStmt->execute([(int) $property['quota_id']]);
+            $cost = $quotaStmt->fetchColumn();
+            if ($cost === false) {
+                $skippedNoOwner[] = $propertyId; // quota_id apunta a un tipo de cuota inexistente -- caso raro, mismo cubo de "requiere revisión manual"
+                continue;
+            }
+
+            // Día de corte clamped al último día real del mes (evita "31 de
+            // febrero" -- LAST_DAY + LEAST es la forma segura en MySQL).
+            $dueDay = (int) $property['due_day'] ?: 1;
+            $dueDateStmt = $pdo->prepare(
+                "SELECT LEAST(?, DAY(LAST_DAY(CONCAT(?, '-01')))) AS clamped_day"
+            );
+            $dueDateStmt->execute([$dueDay, $period]);
+            $clampedDay = (int) $dueDateStmt->fetchColumn();
+            $dueDate = sprintf('%s-%02d', $period, $clampedDay);
+
+            if (!$dryRun) {
+                $insertStmt = $pdo->prepare(
+                    'INSERT INTO user_quotas (due_date, status, amount, user_id, property_id) VALUES (?, 1, ?, ?, ?)'
+                );
+                $insertStmt->execute([$dueDate, (float) $cost, (int) $ownerId, $propertyId]);
+                $newId = (int) $pdo->lastInsertId();
+                Audit::log('user_quotas', $newId, 'create', (int) $claims['sub'], [
+                    'after' => ['due_date' => $dueDate, 'amount' => (float) $cost, 'user_id' => (int) $ownerId, 'property_id' => $propertyId, 'source' => 'generate-period'],
+                ]);
+            }
+
+            $created[] = ['propertyId' => $propertyId, 'dueDate' => $dueDate, 'amount' => (float) $cost];
+        }
+
+        if (!$dryRun) {
+            $pdo->commit();
+        }
+    } catch (\Throwable $e) {
+        if (!$dryRun) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    Response::json(200, [
+        'status' => 'ok',
+        'dryRun' => $dryRun,
+        'period' => $period,
+        'created' => $created,
+        'skippedExisting' => $skippedExisting,
+        'skippedNoOwner' => $skippedNoOwner,
+        'summary' => [
+            'createdCount' => count($created),
+            'skippedExistingCount' => count($skippedExisting),
+            'skippedNoOwnerCount' => count($skippedNoOwner),
+        ],
+    ]);
+}
+
+/**
  * PUT /payment/pay/{id} — marcar una cuota como pagada (admin/super_admin).
  *
  * Ruta REAL del botón "Editar" de la pantalla "Pagos"

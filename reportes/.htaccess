@@ -4,4 +4,14 @@
 # INFORME_EJECUTIVO_V1_VS_V2.md (expediente técnico interno con hallazgos de
 # seguridad) sigue privado. Solo se documenta aquí explícitamente que .html
 # en esta carpeta es público a propósito.
+#
+# "Require all granted" explícito (2026-08-10): no cambia el comportamiento
+# real (nunca hubo una regla Deny aplicada a esta carpeta -- verificado
+# contra administrator/.htaccess, cuyo wildcard de la Fase 9 solo matchea
+# REQUEST_URI que empiece en /administrator/, nunca /reportes/, por ser
+# directorios hermanos sin herencia de reglas entre sí), pero lo deja
+# documentado sin ambigüedad para quien audite este archivo a futuro.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
 Options -Indexes
