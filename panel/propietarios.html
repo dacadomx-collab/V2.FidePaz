@@ -15,7 +15,7 @@
 <script type="module">
     import { api, getToken, goToLogin } from './js/api.js';
     import { renderShell } from './js/shell.js';
-    import { createDataTable } from './js/components/dataTable.js';
+    import { createDataTable, escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
 
     if (!getToken()) { goToLogin(); }
@@ -23,7 +23,7 @@
     const content = renderShell('propietarios', 'Propietarios');
 
     content.innerHTML = `
-        <div style="margin-bottom:1rem;">
+        <div class="panel-toolbar">
             <button type="button" class="btn" id="btn-nuevo">+ Nuevo propietario</button>
         </div>
         <div id="table-mount"></div>
@@ -52,6 +52,7 @@
         ],
         renderActions: (item) => `
             <button type="button" data-action="edit" title="Editar">✏️</button>
+            <button type="button" data-action="reset-password" title="Restablecer contraseña">🔑</button>
             <button type="button" data-action="delete" title="Eliminar">🗑️</button>
         `,
         fetchPage: async ({ search, sortKey, sortDir, page }) => {
@@ -73,6 +74,7 @@
         const id = row.dataset.id;
         if (btn.dataset.action === 'edit') { openForm(id); }
         if (btn.dataset.action === 'delete') { confirmDelete(id); }
+        if (btn.dataset.action === 'reset-password') { openResetPassword(id); }
     });
 
     document.getElementById('btn-nuevo').addEventListener('click', () => openForm(null));
@@ -123,6 +125,14 @@
                         </div>
                         ${!id ? `
                         <div class="panel-form-field">
+                            <label for="f-role">Rol</label>
+                            <select id="f-role">
+                                <option value="owner" selected>Colono</option>
+                                <option value="admin">Administrador</option>
+                                <option value="super_admin">Super administrador</option>
+                            </select>
+                        </div>
+                        <div class="panel-form-field">
                             <label for="f-password">Contraseña inicial</label>
                             <input type="password" id="f-password" required minlength="8">
                         </div>` : ''}
@@ -150,6 +160,7 @@
             };
             if (!id) {
                 payload.password = document.getElementById('f-password').value;
+                payload.role = document.getElementById('f-role').value;
             }
 
             try {
@@ -166,6 +177,83 @@
                 toast(err.message, { type: 'error' });
             }
         });
+    }
+
+    function openResetPassword(id) {
+        const user = rowsById.get(String(id));
+        const userName = user ? escapeHtml(user.name) : '';
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Restablecer contraseña</h2>
+                    <p>Colono: <strong>${userName}</strong></p>
+                    <div class="panel-form-field">
+                        <label for="f-reset-mode">Modo</label>
+                        <select id="f-reset-mode">
+                            <option value="generate" selected>Generar clave temporal segura</option>
+                            <option value="manual">Escribir una contraseña nueva</option>
+                        </select>
+                    </div>
+                    <div class="panel-form-field panel-field-hidden" id="reset-manual-field">
+                        <label for="f-reset-password">Nueva contraseña</label>
+                        <input type="password" id="f-reset-password" minlength="8">
+                    </div>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="btn-cancel-reset">Cancelar</button>
+                        <button type="button" class="btn" id="btn-confirm-reset">Restablecer</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const modeSelect = document.getElementById('f-reset-mode');
+        const manualField = document.getElementById('reset-manual-field');
+        modeSelect.addEventListener('change', () => {
+            manualField.classList.toggle('panel-field-hidden', modeSelect.value !== 'manual');
+        });
+
+        document.getElementById('btn-cancel-reset').addEventListener('click', closeModal);
+        document.getElementById('btn-confirm-reset').addEventListener('click', async () => {
+            const isGenerate = modeSelect.value === 'generate';
+            const manualPassword = document.getElementById('f-reset-password').value;
+
+            if (!isGenerate && manualPassword.length < 8) {
+                toast('La contraseña debe tener al menos 8 caracteres.', { type: 'error' });
+                return;
+            }
+
+            try {
+                const res = await api.put(`/user/reset-password/${id}`, isGenerate ? { generate: true } : { password: manualPassword });
+                closeModal();
+                if (res.generatedPassword) {
+                    showGeneratedPassword(userName, res.generatedPassword);
+                } else {
+                    toast('Contraseña actualizada.');
+                }
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    function showGeneratedPassword(userName, password) {
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Contraseña generada</h2>
+                    <p>Comunica esta clave a <strong>${userName}</strong> por un canal seguro — no se
+                       volverá a mostrar después de cerrar esta ventana.</p>
+                    <div class="panel-form-field">
+                        <input type="text" class="panel-generated-code" readonly value="${escapeHtml(password)}">
+                    </div>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn" id="btn-close-generated">Entendido</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('btn-close-generated').addEventListener('click', closeModal);
     }
 
     function confirmDelete(id) {

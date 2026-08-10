@@ -21,6 +21,10 @@
             margin: 0 0 var(--space-sm);
             font-size: 1.05rem;
         }
+
+        .dashboard-chart-card.dashboard-chart-wide {
+            height: 360px;
+        }
     </style>
 </head>
 <body>
@@ -70,6 +74,12 @@
                 <canvas id="chartEstadoCuotas"></canvas>
             </div>
         </div>
+        <div class="arf-grid dashboard-charts">
+            <div class="card dashboard-chart-card dashboard-chart-wide">
+                <h3>Tendencia de recaudación por año</h3>
+                <canvas id="chartTendenciaAnual"></canvas>
+            </div>
+        </div>
     `;
 
     function fmtMoney(n) {
@@ -108,6 +118,12 @@
         loadChartJs().then(() => {
             renderCobranzaChart(d.totalPagadoHistorico, d.totalPendiente);
             renderEstadoCuotasChart(d.cuotasPagadasCount, d.cuotasVencidas);
+            api.get('/dashboard/yearly-trends').then((trendsRes) => {
+                renderTendenciaAnualChart(trendsRes.data);
+            }).catch((err) => {
+                document.getElementById('chartTendenciaAnual').closest('.dashboard-chart-card').innerHTML +=
+                    `<p class="dashboard-error">No se pudo cargar la tendencia anual: ${err.message || 'error desconocido'}.</p>`;
+            });
         }).catch(() => {
             document.querySelectorAll('.dashboard-chart-card').forEach((card) => {
                 card.innerHTML += '<p class="dashboard-error">No se pudo cargar Chart.js.</p>';
@@ -115,7 +131,7 @@
         });
     }).catch((err) => {
         document.getElementById('kpi-grid').innerHTML = `
-            <div class="dashboard-error" style="width:100%;">
+            <div class="dashboard-error">
                 No se pudieron cargar los indicadores: ${err.message || 'error desconocido'}.
                 <button type="button" class="btn btn-outline" onclick="location.reload()">Reintentar</button>
             </div>
@@ -176,6 +192,57 @@
                 maintainAspectRatio: false,
                 scales: { y: { beginAtZero: true } },
                 plugins: { legend: { display: false } },
+            },
+        });
+    }
+
+    function renderTendenciaAnualChart(trends) {
+        const ctx = document.getElementById('chartTendenciaAnual');
+        if (!ctx) { return; }
+        if (!trends || trends.length === 0) {
+            ctx.closest('.dashboard-chart-card').innerHTML += '<p class="dashboard-error">Sin datos históricos suficientes todavía.</p>';
+            return;
+        }
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trends.map((t) => String(t.year)),
+                datasets: [
+                    {
+                        label: 'Recaudado',
+                        data: trends.map((t) => t.pagado),
+                        borderColor: '#0e9f6e',
+                        backgroundColor: 'rgba(14, 159, 110, 0.15)',
+                        tension: 0.3,
+                        fill: true,
+                    },
+                    {
+                        label: 'Pendiente',
+                        data: trends.map((t) => t.pendiente),
+                        borderColor: '#1c64f2',
+                        backgroundColor: 'rgba(28, 100, 242, 0.12)',
+                        tension: 0.3,
+                        fill: true,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: (value) => fmtMoney(value) },
+                    },
+                },
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (item) => `${item.dataset.label}: ${fmtMoney(item.parsed.y)}`,
+                        },
+                    },
+                },
             },
         });
     }

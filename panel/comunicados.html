@@ -23,7 +23,7 @@
     const content = renderShell('comunicados', 'Comunicados');
 
     content.innerHTML = `
-        <div style="margin-bottom:1rem;">
+        <div class="panel-toolbar">
             <button type="button" class="btn" id="btn-nuevo">+ Nuevo comunicado</button>
         </div>
         <div id="table-mount"></div>
@@ -94,7 +94,7 @@
                         </div>
                         <div class="panel-form-field">
                             <label for="f-content">Contenido</label>
-                            <textarea id="f-content" rows="6" required style="padding:0.6rem 0.75rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);font-size:0.95rem;font-family:inherit;">${item ? escapeHtml(item.content) : ''}</textarea>
+                            <textarea id="f-content" class="panel-textarea" rows="6" required>${item ? escapeHtml(item.content) : ''}</textarea>
                         </div>
                         <div class="panel-form-field">
                             <label for="f-category">Categoría</label>

@@ -74,7 +74,7 @@
             { key: 'code', label: 'Código' },
             { key: 'quotas', label: 'Cuotas', render: quotasSummary },
         ],
-        renderActions: (item) => `<a class="btn btn-outline" style="padding:0.35rem 0.7rem;font-size:0.85rem;" target="_blank" href="${reportBase}?userId=${item.id}">Ver estado de cuenta</a>`,
+        renderActions: (item) => `<a class="btn btn-outline panel-link-btn-sm" target="_blank" href="${reportBase}?userId=${item.id}">Ver estado de cuenta</a>`,
         fetchPage: async ({ search, page }) => {
             const data = await api.get('/payment/list-owners', { search, page });
             document.getElementById('sum-paid').textContent = `$${Number(data.totalPaid).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;

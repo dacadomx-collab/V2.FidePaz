@@ -452,3 +452,46 @@
     padding: var(--space-lg);
     color: var(--color-text-muted);
 }
+
+/* ── UTILIDADES (reseteo de contraseña, panel/propietarios.html) ─────────── */
+.panel-field-hidden {
+    display: none;
+}
+
+.panel-generated-code {
+    font-family: monospace;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+/* ── UTILIDADES ADICIONALES (2026-08-10, barrido de estilos inline) ──────── */
+.panel-toolbar {
+    margin-bottom: var(--space-md);
+}
+
+.panel-toolbar-inline {
+    margin-bottom: var(--space-md);
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.panel-textarea {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+
+.panel-note {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.panel-link-btn-sm {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
+}

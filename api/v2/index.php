@@ -176,6 +176,8 @@ try {
         handle_quota_generate_period();
     } elseif ($method === 'GET' && $path === '/dashboard/summary') {
         handle_dashboard_summary();
+    } elseif ($method === 'GET' && $path === '/dashboard/yearly-trends') {
+        handle_dashboard_yearly_trends();
     } elseif ($method === 'POST' && $path === '/admin/test-email') {
         handle_admin_test_email();
     } elseif ($method === 'GET' && $path === '/payment/list-owners') {
@@ -220,6 +222,8 @@ try {
         handle_user_create();
     } elseif ($method === 'PUT' && preg_match('#^/user/update/(\d+)$#', $path, $m)) {
         handle_user_update((int) $m[1]);
+    } elseif ($method === 'PUT' && preg_match('#^/user/reset-password/(\d+)$#', $path, $m)) {
+        handle_user_reset_password((int) $m[1]);
     } elseif ($method === 'DELETE' && preg_match('#^/user/delete/(\d+)$#', $path, $m)) {
         handle_user_delete((int) $m[1]);
     } elseif ($method === 'GET' && preg_match('#^/user/(\d+)/history$#', $path, $m)) {

@@ -23,7 +23,7 @@
     const content = renderShell('propiedades', 'Propiedades');
 
     content.innerHTML = `
-        <div style="margin-bottom:1rem;">
+        <div class="panel-toolbar">
             <button type="button" class="btn" id="btn-nuevo">+ Nueva propiedad</button>
         </div>
         <div id="table-mount"></div>
@@ -123,7 +123,7 @@
                             <label for="f-owner">Propietario inicial</label>
                             <select id="f-owner" required><option value="">Cargando…</option></select>
                         </div>` : `
-                        <p style="color:var(--color-text-muted);font-size:0.85rem;">
+                        <p class="panel-note">
                             El propietario actual (${currentOwnerName(item)}) no se reasigna desde aquí — la propiedad
                             conserva su historial de cuotas. Para cambiar de dueño usa el módulo de Cuotas.
                         </p>`}
