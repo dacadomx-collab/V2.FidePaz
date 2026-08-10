@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pagos — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin, panelRoot } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { createDataTable } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('pagos', 'Pagos');
+
+    content.innerHTML = `<div id="table-mount"></div><div id="modal-mount"></div>`;
+
+    const tableMount = document.getElementById('table-mount');
+    const modalMount = document.getElementById('modal-mount');
+    const rowsById = new Map();
+
+    const STATUS_LABEL = { 1: 'Pendiente', 2: 'Pagado' };
+
+    const table = createDataTable(tableMount, {
+        searchPlaceholder: 'Buscar por código, colono, calle o número oficial…',
+        emptyMessage: 'No hay pagos registrados con ese criterio.',
+        defaultSortKey: 'dueDate',
+        defaultSortDir: 'desc',
+        columns: [
+            { key: 'user', label: 'Colono', sortable: true, render: (i) => i.user.name || '—' },
+            { key: 'numOficial', label: 'Propiedad', sortable: true, render: (i) => `${i.property.street.name || ''} #${i.property.numOficial}` },
+            { key: 'amount', label: 'Monto', sortable: true, render: (i) => `$${Number(i.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` },
+            { key: 'dueDate', label: 'Vencimiento', sortable: true, render: (i) => (i.dueDate || '').slice(0, 10) },
+            { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge">${STATUS_LABEL[i.status] || i.status}</span>` },
+        ],
+        renderActions: (item) => item.status === 1
+            ? `<button type="button" data-action="pay" title="Marcar como pagado">✅</button>`
+            : `<span title="Ya pagado">—</span>`,
+        fetchPage: async ({ search, sortKey, sortDir, page }) => {
+            const data = await api.get('/payment/filter', { q: search, sortKey, sortDir, page });
+            data.items.forEach((item) => rowsById.set(String(item.id), item));
+            return { items: data.items, meta: data.meta };
+        },
+    });
+
+    tableMount.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action="pay"]');
+        if (!btn) { return; }
+        const id = btn.closest('tr').dataset.id;
+        confirmPay(id);
+    });
+
+    function closeModal() {
+        modalMount.innerHTML = '';
+    }
+
+    function confirmPay(id) {
+        const item = rowsById.get(String(id));
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Registrar pago</h2>
+                    <p>¿Confirmas marcar como <strong>pagado</strong> el adeudo de
+                       <strong>${item ? item.user.name : ''}</strong>
+                       (${item ? `$${Number(item.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : ''})?
+                       Esta acción no se puede deshacer desde aquí.</p>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="btn-cancel-pay">Cancelar</button>
+                        <button type="button" class="btn" id="btn-confirm-pay">Confirmar pago</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('btn-cancel-pay').addEventListener('click', closeModal);
+        document.getElementById('btn-confirm-pay').addEventListener('click', async () => {
+            try {
+                await api.put(`/payment/pay/${id}`, {});
+                toast('Pago registrado.');
+                closeModal();
+                table.reload();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+</script>
+</body>
+</html>

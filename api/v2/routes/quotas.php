@@ -322,6 +322,22 @@ function handle_payments_list(): void
         $params['q4'] = $term;
     }
 
+    // Orden por encabezado de columna (2026-08-10, panel nuevo): whitelist
+    // estricta, aditivo sobre el orden legado (`due_date DESC`) -- si no
+    // viene sortKey, el bundle Angular viejo sigue viendo lo mismo de
+    // siempre.
+    $sortColumns = [
+        'dueDate' => 'uq.due_date',
+        'amount' => 'uq.amount',
+        'status' => 'uq.status',
+        'user' => 'u.name',
+        'street' => 's.name',
+        'numOficial' => 'p.numOficial',
+    ];
+    $sortKey = $sortColumns[$_GET['sortKey'] ?? ''] ?? null;
+    $sortDir = (($_GET['sortDir'] ?? '') === 'asc') ? 'ASC' : 'DESC';
+    $orderBy = $sortKey ? ($sortKey . ' ' . $sortDir) : 'uq.due_date DESC';
+
     $pdo = Database::connection();
 
     $countStmt = $pdo->prepare(
@@ -342,7 +358,7 @@ function handle_payments_list(): void
             LEFT JOIN property p ON p.id = uq.property_id
             LEFT JOIN street s ON s.id = p.street_id
             WHERE ' . implode(' AND ', $where) . '
-            ORDER BY uq.due_date DESC
+            ORDER BY ' . $orderBy . '
             LIMIT :limit OFFSET :offset';
     $stmt = $pdo->prepare($sql);
     foreach ($params as $key => $value) {
