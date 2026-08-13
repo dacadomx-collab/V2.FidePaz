@@ -1,0 +1,23 @@
+# assets/uploads/comunicados/ — adjuntos PDF de Comunicados/Informes Financieros
+# (2026-08-11, POST /api/v2/announcements/upload). Solo .pdf llega a escribirse
+# aquí (MIME real validado en el backend con finfo antes de mover el archivo),
+# pero esta carpeta lleva su propia defensa en profundidad igual que
+# assets/uploads/receipts/: nunca ejecutar nada como PHP, sin importar la
+# extensión real del archivo.
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "\.ph(p[3457]?|t|tml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+Options -Indexes -ExecCGI

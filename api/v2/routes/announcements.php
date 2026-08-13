@@ -2,6 +2,30 @@
 declare(strict_types=1);
 
 /**
+ * Hallazgo "Código Rojo" (2026-08-14): /comunicados e /informes devolvían
+ * 500 en producción/staging porque `visibility` (autorizada 2026-08-11,
+ * aplicada en local, con el ALTER TABLE pendiente entregado varias veces
+ * para remoto) nunca se llegó a correr ahí. Todo endpoint que la
+ * mencionaba en el SQL tronaba con "Unknown column" en cuanto alguien
+ * cargaba Comunicados o Informes Financieros. En vez de seguir bloqueado
+ * esperando ese ALTER, esta función centraliza la verificación (con caché
+ * estático -- una sola consulta SHOW COLUMNS por request, sin importar
+ * cuántas funciones la llamen) y CADA handler de este archivo que toca
+ * `visibility` ahora la usa para degradar con gracia: si la columna no
+ * existe todavía, simplemente no se filtra/escribe por ella -- ni el 500,
+ * ni un dato inventado, el comportamiento cae al de antes de que
+ * `visibility` existiera (todo lo publicado se trata como visible).
+ */
+function announcements_has_visibility_column(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached === null) {
+        $cached = $pdo->query("SHOW COLUMNS FROM announcements LIKE 'visibility'")->rowCount() > 0;
+    }
+    return $cached;
+}
+
+/**
  * GET /posts?_embed&categories=39&orderby=date&order=desc&per_page=20&page=
  *
  * Reemplazo real de la llamada hardcodeada del bundle Angular a
@@ -32,10 +56,11 @@ function handle_posts_list(): void
     $offset = ($page - 1) * $perPage;
 
     $pdo = Database::connection();
+    $visibilityWhere = announcements_has_visibility_column($pdo) ? " AND visibility = 'public'" : '';
     $stmt = $pdo->prepare(
         "SELECT id, title, content, excerpt, image_url, published_at
          FROM announcements
-         WHERE category = :category AND status = 'published'
+         WHERE category = :category AND status = 'published'{$visibilityWhere}
          ORDER BY published_at DESC
          LIMIT :limit OFFSET :offset"
     );
@@ -91,6 +116,106 @@ function handle_comunicados_list(): void
     handle_announcements_by_category('comunicados');
 }
 
+/**
+ * GET /avisos?category=&year= — feed para el colono AUTENTICADO dentro del
+ * panel (panel/mi-cuenta.html), pedido 2026-08-11. Distinto de /comunicados
+ * y /informes (públicos, sin login, solo `visibility='public'`): aquí
+ * cualquier usuario ya autenticado (cualquier rol -- no requiere
+ * admin/super_admin) ve TODO lo `status='published'` sin filtrar por
+ * `visibility`, porque estar dentro del panel YA implica ser un colono
+ * legítimo -- "private" solo significa "no exponer en la Landing Page
+ * pública sin login", no "ocultar de los propios colonos". `category`
+ * opcional (comunicados|financiero|reportes); `year` opcional, filtra por
+ * año de `published_at` -- pensado para el filtro por año que pidió el
+ * Arquitecto en el perfil del colono.
+ */
+function handle_avisos_feed(): void
+{
+    Auth::requireUser();
+
+    $pdo = Database::connection();
+    $where = ["status = 'published'"];
+    $params = [];
+
+    if (!empty($_GET['category']) && in_array($_GET['category'], ['comunicados', 'financiero', 'reportes'], true)) {
+        $where[] = 'category = :category';
+        $params['category'] = $_GET['category'];
+    }
+    if (!empty($_GET['year']) && ctype_digit((string) $_GET['year'])) {
+        $where[] = 'YEAR(published_at) = :year';
+        $params['year'] = (int) $_GET['year'];
+    }
+
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $pageSize = 20;
+    $offset = ($page - 1) * $pageSize;
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM announcements WHERE ' . implode(' AND ', $where));
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    // "visibility" es opcional aquí a propósito (2026-08-12): a diferencia de
+    // /comunicados, /informes, /posts y el CRUD admin -- donde esa columna
+    // es indispensable para filtrar qué es público -- este feed NO filtra
+    // por visibility (ver docblock arriba), solo la MUESTRA como badge
+    // informativo en el panel/avisos.html.
+    $visibilityCol = announcements_has_visibility_column($pdo) ? ', visibility' : '';
+
+    $stmt = $pdo->prepare(
+        "SELECT id, title, content, excerpt, category, image_url, archivo_pdf_url, published_at{$visibilityCol}
+         FROM announcements
+         WHERE " . implode(' AND ', $where) . '
+         ORDER BY published_at DESC
+         LIMIT :limit OFFSET :offset'
+    );
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue('limit', $pageSize, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $items = array_map(static function (array $r): array {
+        return [
+            'id' => $r['id'],
+            'title' => $r['title'],
+            'content' => $r['content'],
+            'excerpt' => $r['excerpt'],
+            'category' => $r['category'],
+            'visibility' => $r['visibility'] ?? null,
+            'imageUrl' => $r['image_url'],
+            'archivoUrl' => $r['archivo_pdf_url'],
+            'publishedAt' => Response::isoDate($r['published_at']),
+        ];
+    }, $stmt->fetchAll());
+
+    Response::json(200, [
+        'status' => 'ok',
+        'items' => $items,
+        'meta' => [
+            'total' => $total,
+            'totalPages' => (int) ceil($total / $pageSize),
+            'page' => $page,
+        ],
+    ]);
+}
+
+/**
+ * GET /avisos/years — años distintos con al menos un aviso publicado, para
+ * poblar el <select> de filtro en el panel sin hardcodear un rango de años.
+ */
+function handle_avisos_years(): void
+{
+    Auth::requireUser();
+
+    $pdo = Database::connection();
+    $years = $pdo->query(
+        "SELECT DISTINCT YEAR(published_at) AS y FROM announcements WHERE status = 'published' ORDER BY y DESC"
+    )->fetchAll(PDO::FETCH_COLUMN);
+
+    Response::json(200, ['status' => 'ok', 'years' => array_map('intval', $years)]);
+}
+
 function handle_informes_list(): void
 {
     handle_announcements_by_category('reportes');
@@ -103,15 +228,16 @@ function handle_announcements_by_category(string $category): void
     $offset = ($page - 1) * $pageSize;
 
     $pdo = Database::connection();
+    $visibilityWhere = announcements_has_visibility_column($pdo) ? " AND visibility = 'public'" : '';
 
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM announcements WHERE category = ? AND status = 'published'");
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM announcements WHERE category = ? AND status = 'published'{$visibilityWhere}");
     $countStmt->execute([$category]);
     $total = (int) $countStmt->fetchColumn();
 
     $stmt = $pdo->prepare(
         "SELECT id, title, content, excerpt, image_url, archivo_pdf_url, published_at
          FROM announcements
-         WHERE category = :category AND status = 'published'
+         WHERE category = :category AND status = 'published'{$visibilityWhere}
          ORDER BY published_at DESC
          LIMIT :limit OFFSET :offset"
     );
@@ -190,8 +316,9 @@ function handle_announcements_admin_list(): void
     // formulario de edición con la fila ya cargada en la tabla, igual que
     // Propietarios/Propiedades. Omitirlo aquí habría mandado el textarea
     // vacío en cada edición y borrado el contenido real al guardar.
+    $visibilityCol = announcements_has_visibility_column($pdo) ? ', visibility' : '';
     $stmt = $pdo->prepare(
-        'SELECT id, title, content, excerpt, category, status, image_url, archivo_pdf_url, published_at
+        'SELECT id, title, content, excerpt, category, status' . $visibilityCol . ', image_url, archivo_pdf_url, published_at
          FROM announcements
          WHERE ' . implode(' AND ', $where) . '
          ORDER BY ' . $sortKey . ' ' . $sortDir . '
@@ -232,8 +359,10 @@ function handle_announcements_create(): void
     $excerpt = trim((string) ($body['excerpt'] ?? '')) ?: null;
     $category = (string) ($body['category'] ?? 'comunicados');
     $status = (string) ($body['status'] ?? 'published');
+    $visibility = (string) ($body['visibility'] ?? 'private');
     $imageUrl = trim((string) ($body['image_url'] ?? '')) ?: null;
     $archivoPdfUrl = trim((string) ($body['archivo_pdf_url'] ?? '')) ?: null;
+    $publishedAtRaw = trim((string) ($body['published_at'] ?? ''));
 
     if ($title === '' || $content === '') {
         Response::error(400, 'title y content son obligatorios');
@@ -244,13 +373,42 @@ function handle_announcements_create(): void
     if (!in_array($status, ['published', 'draft'], true)) {
         Response::error(400, 'status inválido (published|draft)');
     }
+    if (!in_array($visibility, ['public', 'private'], true)) {
+        Response::error(400, 'visibility inválida (public|private)');
+    }
+
+    // published_at es opcional -- por defecto la columna toma CURRENT_TIMESTAMP.
+    // Se permite fijarlo a mano (ej. "2024-08-01") para Informes Financieros,
+    // donde la fecha real es el periodo que reporta el PDF, no el momento en
+    // que el admin lo sube al panel.
+    $publishedAt = null;
+    if ($publishedAtRaw !== '') {
+        $ts = strtotime($publishedAtRaw);
+        if ($ts === false) {
+            Response::error(400, 'published_at inválido');
+        }
+        $publishedAt = date('Y-m-d H:i:s', $ts);
+    }
 
     $pdo = Database::connection();
+    $columns = ['title', 'content', 'excerpt', 'category', 'status', 'image_url', 'archivo_pdf_url', 'author_id'];
+    $values = [$title, $content, $excerpt, $category, $status, $imageUrl, $archivoPdfUrl, (int) $claims['sub']];
+    // Si la columna no existe todavía (ALTER TABLE pendiente en este
+    // entorno), simplemente no se intenta escribir -- nunca truena el
+    // INSERT completo por un campo que el remitente no controla.
+    if (announcements_has_visibility_column($pdo)) {
+        $columns[] = 'visibility';
+        $values[] = $visibility;
+    }
+    if ($publishedAt !== null) {
+        $columns[] = 'published_at';
+        $values[] = $publishedAt;
+    }
+    $placeholders = implode(', ', array_fill(0, count($columns), '?'));
     $stmt = $pdo->prepare(
-        'INSERT INTO announcements (title, content, excerpt, category, status, image_url, archivo_pdf_url, author_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO announcements (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')'
     );
-    $stmt->execute([$title, $content, $excerpt, $category, $status, $imageUrl, $archivoPdfUrl, (int) $claims['sub']]);
+    $stmt->execute($values);
 
     Response::json(201, ['status' => 'ok', 'id' => (int) $pdo->lastInsertId()]);
 }
@@ -274,8 +432,10 @@ function handle_announcements_update(int $id): void
     $excerpt = trim((string) ($body['excerpt'] ?? '')) ?: null;
     $category = (string) ($body['category'] ?? 'comunicados');
     $status = (string) ($body['status'] ?? 'published');
+    $visibility = (string) ($body['visibility'] ?? 'private');
     $imageUrl = trim((string) ($body['image_url'] ?? '')) ?: null;
     $archivoPdfUrl = trim((string) ($body['archivo_pdf_url'] ?? '')) ?: null;
+    $publishedAtRaw = trim((string) ($body['published_at'] ?? ''));
 
     if ($title === '' || $content === '') {
         Response::error(400, 'title y content son obligatorios');
@@ -286,13 +446,28 @@ function handle_announcements_update(int $id): void
     if (!in_array($status, ['published', 'draft'], true)) {
         Response::error(400, 'status inválido (published|draft)');
     }
+    if (!in_array($visibility, ['public', 'private'], true)) {
+        Response::error(400, 'visibility inválida (public|private)');
+    }
 
-    $stmt = $pdo->prepare(
-        'UPDATE announcements
-         SET title = ?, content = ?, excerpt = ?, category = ?, status = ?, image_url = ?, archivo_pdf_url = ?
-         WHERE id = ?'
-    );
-    $stmt->execute([$title, $content, $excerpt, $category, $status, $imageUrl, $archivoPdfUrl, $id]);
+    $setClauses = ['title = ?', 'content = ?', 'excerpt = ?', 'category = ?', 'status = ?', 'image_url = ?', 'archivo_pdf_url = ?'];
+    $values = [$title, $content, $excerpt, $category, $status, $imageUrl, $archivoPdfUrl];
+    if (announcements_has_visibility_column($pdo)) {
+        $setClauses[] = 'visibility = ?';
+        $values[] = $visibility;
+    }
+    if ($publishedAtRaw !== '') {
+        $ts = strtotime($publishedAtRaw);
+        if ($ts === false) {
+            Response::error(400, 'published_at inválido');
+        }
+        $setClauses[] = 'published_at = ?';
+        $values[] = date('Y-m-d H:i:s', $ts);
+    }
+    $values[] = $id;
+
+    $stmt = $pdo->prepare('UPDATE announcements SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+    $stmt->execute($values);
 
     Response::json(200, ['status' => 'ok', 'id' => $id]);
 }
@@ -312,4 +487,61 @@ function handle_announcements_delete(int $id): void
     }
 
     Response::json(200, ['status' => 'ok']);
+}
+
+/**
+ * POST /announcements/upload — sube el PDF adjunto de un comunicado/informe
+ * (admin/super_admin). Mismo patrón de validación que
+ * handle_payment_upload_receipt (quotas.php): el MIME real del archivo
+ * (finfo, nunca el Content-Type declarado por el navegador) decide si se
+ * acepta, no la extensión. Solo PDF aquí -- a diferencia de los comprobantes
+ * de pago, este adjunto es el documento en sí (informe financiero /
+ * comunicado), no una imagen de recibo.
+ *
+ * Devuelve solo la URL relativa -- no toca la tabla `announcements`
+ * directamente porque el formulario del panel (comunicados.html /
+ * informes.html) sube el archivo primero y luego manda esa URL como parte
+ * del payload normal de POST/PUT /announcements, junto con el resto de los
+ * campos (título, contenido, categoría, etc.) en un solo guardado.
+ */
+function handle_announcements_upload_pdf(): void
+{
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['admin', 'super_admin']);
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        $uploadErr = $_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE;
+        $message = $uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE
+            ? 'El archivo excede el tamaño máximo permitido por el servidor.'
+            : 'No se recibió ningún archivo válido.';
+        Response::error(400, $message);
+    }
+
+    $tmpPath = $_FILES['file']['tmp_name'];
+    $sizeBytes = (int) $_FILES['file']['size'];
+    $maxBytes = 10 * 1024 * 1024; // informes financieros escaneados pesan más que un comprobante suelto
+    if ($sizeBytes > $maxBytes) {
+        Response::error(400, 'El archivo supera el máximo de 10 MB.');
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $realMimeType = finfo_file($finfo, $tmpPath);
+    finfo_close($finfo);
+
+    if ($realMimeType !== 'application/pdf') {
+        Response::error(400, 'Tipo de archivo no permitido. Solo se aceptan PDF.');
+    }
+
+    $uploadsDir = __DIR__ . '/../../../assets/uploads/comunicados/';
+    $generatedName = 'doc_' . bin2hex(random_bytes(16)) . '.pdf';
+    $destination = $uploadsDir . $generatedName;
+
+    if (!move_uploaded_file($tmpPath, $destination)) {
+        Response::error(500, 'No se pudo guardar el archivo en el servidor.');
+    }
+
+    Response::json(200, [
+        'status' => 'ok',
+        'url' => 'assets/uploads/comunicados/' . $generatedName,
+    ]);
 }

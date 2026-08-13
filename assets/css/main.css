@@ -373,6 +373,16 @@ video {
     background-color: var(--color-primary-soft);
 }
 
+/* Un <button> con color/fondo explícito como .btn/.btn-outline ignora el
+   atenuado nativo del navegador para [disabled] y se ve idéntico a uno
+   habilitado mientras está deshabilitado (ej. envío en curso en
+   caja.html/cuotas.html/login.html/mensajes.html). */
+.btn:disabled,
+.btn-outline:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .hero {
     text-align: center;
     padding-block: var(--space-lg);

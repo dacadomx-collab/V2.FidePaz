@@ -1,0 +1,16 @@
+# api/v2/cli/ -- scripts para cron/CLI únicamente, NUNCA por HTTP. A
+# diferencia del resto de api/v2/ (que enruta todo a través de index.php vía
+# RewriteRule condicionado a "no es un archivo real"), un .php real aquí SÍ
+# es servible directo por Apache si no se bloquea explícito -- cualquiera
+# podría llamar generate_monthly_quotas.php por URL sin ningún JWT ni rol,
+# disparando generación de cuotas a voluntad. Bloqueo total sin excepción,
+# más el check de php_sapi_name() === 'cli' dentro del propio script como
+# segunda capa (defensa en profundidad, mismo criterio que
+# assets/uploads/*/.htaccess).
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

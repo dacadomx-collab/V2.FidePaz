@@ -368,6 +368,114 @@
     color: var(--color-primary-dark);
 }
 
+/* Estados de cuota/pago (2026-08-12): antes toda etiqueta de estatus --
+   "Pendiente" y "Pagado" por igual -- salía del mismo azul neutro de
+   .panel-badge, sin distinción visual real entre "hay que cobrar" y "ya
+   está cobrado". Reutilizan los tokens --color-danger/success(-soft) ya
+   definidos en assets/css/main.css (mismos que .eoc-badge.paid/.pending en
+   reportes/estado-de-cuenta.html, ahora también migrado a estos tokens en
+   vez de hex fijo). */
+.panel-badge-pending {
+    background-color: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
+.panel-badge-paid {
+    background-color: var(--color-success-soft);
+    color: var(--color-success);
+}
+
+/* Botón que se ve como link (2026-08-14) -- para acciones que necesitan JS
+   (descarga autenticada vía blob, ej. comprobantes) y por eso no pueden ser
+   un <a href> plano, pero deben verse consistentes junto a los <a> reales
+   de la misma lista (ej. "Recibo oficial" en mi-cuenta.html/pagos.html). */
+.btn-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+.btn-link:disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+/* Estados del módulo Mensajes (2026-08-12). */
+.panel-badge-nuevo {
+    background-color: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
+.panel-badge-abierto {
+    background-color: var(--color-warning-soft);
+    color: var(--color-warning);
+}
+
+.panel-badge-respondido {
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+}
+
+.panel-badge-cerrado {
+    background-color: var(--color-bg-alt);
+    color: var(--color-text-muted);
+}
+
+/* ── CHIPS DE FILTRO ───────────────────────────────────────────────────────
+   Reemplazan <select> nativos para filtros de una sola elección (año,
+   categoría, etc.) -- 2026-08-12. Un <select> sin envolver en
+   .panel-form-field no hereda ningún color de tema (se ve como un cuadro
+   blanco con texto negro pegado encima de un panel oscuro); los chips son
+   simples <button>, así que siempre respetan --color-* sin importar el
+   tema. Origen: panel/avisos.html, promovido aquí para reusarse también en
+   panel/mi-cuenta.html (filtro de año del historial de pagos). */
+.panel-filter-group {
+    margin-bottom: var(--space-md);
+}
+
+.panel-filter-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin: 0 0 0.4rem;
+}
+
+.panel-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.panel-chip {
+    padding: 0.45rem 0.95rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.panel-chip:hover {
+    border-color: var(--color-primary);
+}
+
+.panel-chip.is-active {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #ffffff;
+}
+
 .panel-empty-state {
     text-align: center;
     padding: var(--space-lg) 0;

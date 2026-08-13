@@ -8,59 +8,142 @@
     <link rel="icon" href="../favicon.ico">
     <link rel="stylesheet" href="../assets/css/main.css">
     <style>
-        /* Estilos propios de esta página de estado de cuenta -- reutiliza
-           las variables de color de main.css (--color-primary, etc.), no
-           inventa una paleta nueva. Sin !important, sin estilos inline en
-           el HTML (todo vive aquí, en la única hoja de estilos de esta
-           página). */
-        .eoc-hero {
-            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-            color: #fff;
-            padding: var(--space-lg) 0;
+        /* Estilos propios de esta página -- reutiliza las variables de color
+           de main.css (--color-primary, --color-success, --color-danger,
+           etc.), no inventa una paleta nueva. Sin !important, sin estilos
+           inline en el HTML (todo vive aquí). */
+        .eoc-doc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            padding: var(--space-md) 0;
+            border-bottom: 2px solid var(--color-border);
         }
 
-        .eoc-hero .eyebrow {
-            opacity: 0.85;
-            font-size: 0.9rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
+        .eoc-doc-header .brand-block {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        .eoc-hero h1 {
-            margin: 0.4rem 0 0;
-            font-size: 1.9rem;
+        .eoc-doc-header img {
+            height: 3rem;
         }
 
-        .eoc-hero .owner-name {
-            font-size: 1.15rem;
-            opacity: 0.95;
-            margin-top: 0.3rem;
+        .eoc-doc-header .brand-block h1 {
+            font-size: 1.25rem;
+            margin: 0;
         }
 
-        .eoc-summary {
-            margin-top: -2.5rem;
+        .eoc-doc-header .brand-block p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .eoc-doc-meta {
+            text-align: right;
+            font-size: 0.82rem;
+            color: var(--color-text-muted);
+        }
+
+        .eoc-doc-meta strong {
+            color: var(--color-text);
+        }
+
+        .eoc-status-banner {
+            margin: var(--space-md) 0;
+            padding: var(--space-md) var(--space-lg);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .eoc-status-banner.is-ok {
+            background-color: var(--color-success-soft);
+            border: 1px solid var(--color-success);
+        }
+
+        .eoc-status-banner.is-pending {
+            background-color: var(--color-danger-soft);
+            border: 1px solid var(--color-danger);
+        }
+
+        .eoc-status-banner .status-icon {
+            font-size: 2rem;
+            line-height: 1;
+        }
+
+        .eoc-status-banner .status-text {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .eoc-status-banner.is-ok .status-text { color: var(--color-success); }
+        .eoc-status-banner.is-pending .status-text { color: var(--color-danger); }
+
+        .eoc-summary-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
         }
 
         .eoc-card {
+            flex: 1 1 12rem;
             background: var(--color-bg);
             border: 1px solid var(--color-border);
             border-radius: var(--radius);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
             padding: var(--space-md);
         }
 
         .eoc-summary-value {
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: 700;
         }
 
-        .eoc-summary-value.paid { color: #0e9f6e; }
-        .eoc-summary-value.pending { color: var(--color-danger); }
-
         .eoc-summary-label {
             color: var(--color-text-muted);
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             margin-top: 0.2rem;
+        }
+
+        .eoc-owner-card {
+            background: var(--color-bg-alt);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            padding: var(--space-md) var(--space-lg);
+            margin: var(--space-md) 0;
+        }
+
+        .eoc-owner-card h2 {
+            margin: 0 0 0.6rem;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--color-text-muted);
+        }
+
+        .eoc-owner-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md) var(--space-lg);
+        }
+
+        .eoc-owner-grid .field-label {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+        }
+
+        .eoc-owner-grid .field-value {
+            font-size: 0.95rem;
+            font-weight: 600;
         }
 
         .eoc-year-tabs {
@@ -86,30 +169,29 @@
             color: #fff;
         }
 
-        .eoc-month-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: var(--space-sm);
-        }
-
-        .eoc-month-card {
-            flex: 1 1 calc(25% - var(--space-sm));
-            min-width: 220px;
-            background: var(--color-bg);
+        .eoc-table-wrap {
+            overflow-x: auto;
             border: 1px solid var(--color-border);
             border-radius: var(--radius);
-            padding: var(--space-sm);
         }
 
-        .eoc-month-card .month-name {
-            font-weight: 700;
-            text-transform: capitalize;
+        .eoc-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
         }
 
-        .eoc-month-card .month-amount {
-            font-size: 1.3rem;
+        .eoc-table th,
+        .eoc-table td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--color-border);
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .eoc-table th {
+            background: var(--color-bg-alt);
             font-weight: 700;
-            margin: 0.35rem 0;
         }
 
         .eoc-badge {
@@ -120,8 +202,19 @@
             font-weight: 700;
         }
 
-        .eoc-badge.paid { background: #def7ec; color: #03543f; }
-        .eoc-badge.pending { background: #fde8e8; color: #9b1c1c; }
+        .eoc-badge.paid { background: var(--color-success-soft); color: var(--color-success); }
+        .eoc-badge.pending { background: var(--color-danger-soft); color: var(--color-danger); }
+        .eoc-badge.historic { background: var(--color-primary-soft); color: var(--color-primary-dark); }
+
+        .eoc-doc-link {
+            color: var(--color-primary);
+            text-decoration: underline;
+            font-size: 0.8rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
 
         .eoc-actions {
             display: flex;
@@ -135,14 +228,50 @@
             color: var(--color-text-muted);
         }
 
+        .eoc-footer {
+            margin-top: var(--space-lg);
+            padding-top: var(--space-md);
+            border-top: 2px solid var(--color-border);
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
+        }
+
+        .eoc-footer .signature-block {
+            display: flex;
+            gap: var(--space-lg);
+            flex-wrap: wrap;
+            margin-bottom: var(--space-md);
+        }
+
+        .eoc-footer .signature-line {
+            flex: 1 1 12rem;
+            text-align: center;
+            padding-top: 2.5rem;
+            border-top: 1px solid var(--color-text-muted);
+        }
+
+        .eoc-footer .transparency-note {
+            background: var(--color-bg-alt);
+            border-radius: var(--radius);
+            padding: var(--space-sm) var(--space-md);
+            margin-bottom: var(--space-sm);
+        }
+
         @media print {
-            .site-header, .eoc-actions, .eoc-year-tabs, .footer, .site-footer {
-                display: none !important;
+            .site-header, .eoc-actions, .eoc-year-tabs, .footer, .site-footer, .eoc-doc-link {
+                display: none;
             }
-            .eoc-hero {
-                background: var(--color-primary) !important;
+            body {
+                background: #ffffff;
+                color: #000000;
+            }
+            .eoc-status-banner,
+            .eoc-badge {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+            .eoc-table {
+                font-size: 0.78rem;
             }
         }
     </style>
@@ -156,54 +285,87 @@
     <nav>
         <ul class="site-nav">
             <li><a href="../">Sitio público</a></li>
-            <li><a href="../administrator/">Volver al panel</a></li>
+            <li><a href="../panel/">Volver al panel</a></li>
         </ul>
     </nav>
 </header>
 
-<main>
-    <section class="eoc-hero">
-        <div class="container">
-            <p class="eyebrow">Asociación de Colonos FidePaz</p>
-            <h1>Estado de Cuenta</h1>
-            <p class="owner-name" id="eoc-owner-name">Cargando información…</p>
+<main class="container">
+    <div class="eoc-doc-header">
+        <div class="brand-block">
+            <img src="../assets/img/fidepaz-logo.png" alt="FidePaz" onerror="this.style.display='none'">
+            <div>
+                <h1>Estado de Cuenta</h1>
+                <p>Asociación de Colonos de FidePaz A.C.</p>
+            </div>
         </div>
-    </section>
-
-    <div class="container eoc-summary">
-        <div class="arf-grid">
-            <div class="eoc-card arf-col-3">
-                <p class="eoc-summary-value paid" id="eoc-total-paid">—</p>
-                <p class="eoc-summary-label">Total pagado (histórico)</p>
-            </div>
-            <div class="eoc-card arf-col-3">
-                <p class="eoc-summary-value pending" id="eoc-total-pending">—</p>
-                <p class="eoc-summary-label">Saldo pendiente</p>
-            </div>
-            <div class="eoc-card arf-col-3">
-                <p class="eoc-summary-value" id="eoc-total-quotas">—</p>
-                <p class="eoc-summary-label">Cuotas registradas</p>
-            </div>
+        <div class="eoc-doc-meta">
+            <p>Folio de consulta: <strong id="eoc-folio">—</strong></p>
+            <p>Fecha de emisión: <strong id="eoc-issue-date">—</strong></p>
+            <p>Período consultado: <strong id="eoc-period">—</strong></p>
         </div>
     </div>
 
-    <section class="container">
-        <div class="eoc-actions">
-            <button type="button" class="btn" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+    <div id="eoc-status-banner" class="eoc-status-banner is-ok" hidden>
+        <span class="status-icon" id="eoc-status-icon">✅</span>
+        <div>
+            <p class="status-text" id="eoc-status-text">Al Corriente</p>
+            <p style="margin:0;font-size:0.82rem;color:var(--color-text-muted);">Estatus general de la cuenta (histórico completo, no solo el año consultado)</p>
         </div>
+    </div>
 
-        <h2>Por año</h2>
-        <div class="eoc-year-tabs" id="eoc-year-tabs"></div>
+    <div class="eoc-summary-row">
+        <div class="eoc-card">
+            <p class="eoc-summary-value" id="eoc-total-year">—</p>
+            <p class="eoc-summary-label">Total aportado (año consultado)</p>
+        </div>
+        <div class="eoc-card">
+            <p class="eoc-summary-value" id="eoc-total-pending">—</p>
+            <p class="eoc-summary-label">Saldo pendiente (histórico)</p>
+        </div>
+        <div class="eoc-card">
+            <p class="eoc-summary-value" id="eoc-property-count">—</p>
+            <p class="eoc-summary-label">Propiedad(es) registrada(s)</p>
+        </div>
+    </div>
 
-        <div id="eoc-content">
-            <p class="eoc-loading">Cargando estado de cuenta…</p>
+    <section class="eoc-owner-card">
+        <h2>Ficha del colono</h2>
+        <div class="eoc-owner-grid">
+            <div><p class="field-label">Nombre completo</p><p class="field-value" id="eoc-owner-name">—</p></div>
+            <div><p class="field-label">Dirección / Lote</p><p class="field-value" id="eoc-owner-address">—</p></div>
+            <div><p class="field-label">Teléfono</p><p class="field-value" id="eoc-owner-phone">—</p></div>
+            <div><p class="field-label">Correo</p><p class="field-value" id="eoc-owner-email">—</p></div>
         </div>
     </section>
-</main>
 
-<footer class="site-footer container">
-    <p>Documento generado el <span id="eoc-print-date"></span> — Asociación de Colonos FidePaz A.C.</p>
-</footer>
+    <div class="eoc-actions">
+        <button type="button" class="btn" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+    </div>
+
+    <h2>Desglose detallado de aportaciones</h2>
+    <div class="eoc-year-tabs" id="eoc-year-tabs"></div>
+
+    <div id="eoc-content">
+        <p class="eoc-loading">Cargando estado de cuenta…</p>
+    </div>
+
+    <footer class="eoc-footer">
+        <div class="signature-block">
+            <div class="signature-line">Presidente<br>Mesa Directiva</div>
+            <div class="signature-line">Tesorero<br>Mesa Directiva</div>
+            <div class="signature-line">Secretario<br>Mesa Directiva</div>
+        </div>
+        <div class="transparency-note">
+            Este documento se genera automáticamente a partir de los registros oficiales del
+            sistema de la Asociación de Colonos de FidePaz. Los montos y estatus reflejan la
+            información disponible al momento de su consulta — cualquier discrepancia debe
+            reportarse a la administración dentro de los 15 días naturales siguientes a la emisión.
+        </div>
+        <p>Oficina de la Asociación de Colonos FidePaz — Tel. (612) 106-6235</p>
+        <p>Documento generado el <span id="eoc-print-date"></span></p>
+    </footer>
+</main>
 
 <script>
 (function () {
@@ -211,11 +373,26 @@
 
     var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
+    // Estandarización global de fechas (2026-08-14, Objetivo 3): misma
+    // salida que formatDateColono() de panel/js/api.js ("13 AGO 2026") --
+    // esta página no importa ese módulo (vive fuera de /panel/, script
+    // clásico, no ES module), así que se duplica localmente, mismo criterio
+    // que el resto de los helpers de este archivo (escapeHtml, fmtMoney).
+    var MESES_ABREVIADOS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    function formatDateColono(dateString) {
+        if (!dateString) { return ''; }
+        var d = new Date(dateString);
+        if (isNaN(d.getTime())) { return ''; }
+        var day = String(d.getDate());
+        if (day.length < 2) { day = '0' + day; }
+        return day + ' ' + MESES_ABREVIADOS[d.getMonth()] + ' ' + d.getFullYear();
+    }
+
     // Base de API relativa al origen actual (2026-08-08): en producción
     // esta página vive en https://v2.fidepaz.org/reportes/..., en local en
     // http://localhost/FidePaz.org/reportes/... -- calcular el prefijo real
     // en vez de hardcodear el dominio evita que el reporte funcione solo
-    // en un entorno (mismo patrón que el <base href> de administrator/index.html).
+    // en un entorno.
     var API_BASE = (function () {
         var marker = '/reportes/';
         var path = window.location.pathname;
@@ -223,6 +400,13 @@
         var root = idx >= 0 ? path.slice(0, idx) : '';
         return window.location.origin + root + '/api/v2';
     })();
+
+
+    function escapeHtml(str) {
+        return String(str || '').replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
 
     function fmtMoney(n) {
         return '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -236,71 +420,136 @@
         return localStorage.getItem('token');
     }
 
+    var currentUserId = null;
+
     function fetchQuotas() {
         var token = getToken();
         if (!token) {
             document.getElementById('eoc-content').innerHTML =
-                '<p class="eoc-empty">Inicia sesión en el <a href="../administrator/">panel de colonos</a> para ver tu estado de cuenta.</p>';
+                '<p class="eoc-empty">Inicia sesión en el <a href="../panel/">panel de colonos</a> para ver tu estado de cuenta.</p>';
             return;
         }
 
-        var userId = getParam('userId');
+        var activeUserRaw = localStorage.getItem('activeUser');
+        var activeUser = null;
+        if (activeUserRaw) {
+            try { activeUser = JSON.parse(activeUserRaw); } catch (e) { /* sin datos de sesión cacheados */ }
+        }
+        var role = activeUser ? activeUser.role : null;
+        var isColonoRole = role === 'owner' || role === 'colono';
+
+        // Un colono SIEMPRE ve su propio estado de cuenta, sin importar qué
+        // userId traiga la URL (evita pantalla en blanco por un 403 si
+        // llega un link ajeno -- ej. copiado de una vista de admin -- y de
+        // paso cierra la puerta a fisgonear el estado de cuenta de otro
+        // colono cambiando el parámetro a mano). admin/super_admin sí
+        // pueden navegar cualquier ?userId=X.
+        var userId = isColonoRole ? null : getParam('userId');
         var authHeaders = { Authorization: 'Bearer ' + token };
 
         if (!userId) {
             fetch(API_BASE + '/payment/owners', { headers: authHeaders })
-                .then(function (r) { return r.json(); })
-                .then(renderData)
+                .then(function (r) {
+                    if (!r.ok) { return r.json().then(function (d) { throw new Error(d.message || 'Error del servidor'); }); }
+                    return r.json();
+                })
+                .then(function (data) {
+                    currentUserId = data.user ? data.user.id : (activeUser ? activeUser.id : null);
+                    renderData(data);
+                })
                 .catch(showLoadError);
         } else {
-            fetchAllPages(userId, authHeaders, 1, []);
-        }
-
-        var activeUserRaw = localStorage.getItem('activeUser');
-        if (activeUserRaw && !userId) {
-            try {
-                var activeUser = JSON.parse(activeUserRaw);
-                document.getElementById('eoc-owner-name').textContent = activeUser.name || '';
-            } catch (e) { /* nombre queda con el valor por defecto */ }
+            currentUserId = userId;
+            fetchAllPages(userId, authHeaders, 1, [], null);
         }
     }
 
     // /payment/quotas-owners/{id} pagina de 20 en 20 -- para el reporte
     // anual completo hay que recorrer todas las páginas antes de agrupar.
-    function fetchAllPages(userId, authHeaders, page, accumulated) {
+    function fetchAllPages(userId, authHeaders, page, accumulated, userInfo) {
         fetch(API_BASE + '/payment/quotas-owners/' + encodeURIComponent(userId) + '?page=' + page, { headers: authHeaders })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) { return r.json().then(function (d) { throw new Error(d.message || 'Error del servidor'); }); }
+                return r.json();
+            })
             .then(function (data) {
                 var items = accumulated.concat(data.items || []);
                 var totalPages = (data.meta && data.meta.totalPages) || 1;
+                var user = userInfo || data.user;
                 if (page < totalPages) {
-                    fetchAllPages(userId, authHeaders, page + 1, items);
+                    fetchAllPages(userId, authHeaders, page + 1, items, user);
                 } else {
-                    renderData({ items: items });
+                    renderData({ items: items, user: user });
                 }
             })
-            .catch(showLoadError);
+            .catch(function (err) {
+                document.getElementById('eoc-content').innerHTML =
+                    '<p class="eoc-empty">' + escapeHtml(err.message || 'No se pudo cargar el estado de cuenta.') + '</p>';
+            });
     }
 
-    function showLoadError() {
-        document.getElementById('eoc-content').innerHTML =
-            '<p class="eoc-empty">No se pudo cargar el estado de cuenta. Intenta de nuevo más tarde.</p>';
+    function showLoadError(err) {
+        var message = (err && err.message) ? err.message : 'No se pudo cargar el estado de cuenta. Intenta de nuevo más tarde.';
+        document.getElementById('eoc-content').innerHTML = '<p class="eoc-empty">' + escapeHtml(message) + '</p>';
+    }
+
+    function renderOwnerCard(user) {
+        if (!user) { return; }
+        document.getElementById('eoc-owner-name').textContent = user.name || '—';
+        document.getElementById('eoc-owner-phone').textContent = user.cellphone || user.phone || '—';
+        document.getElementById('eoc-owner-email').textContent = user.email || '—';
+        document.getElementById('eoc-owner-address').textContent = user.code || '—';
+    }
+
+    // Solución de raíz definitiva -- un solo clic (2026-08-14): antes había
+    // que dar clic dos veces (uno para pedir el archivo por fetch, ya que
+    // un <a href> plano no puede mandar el header Authorization, y otro
+    // sobre el link ya listo). Ahora /payment/owners y
+    // /payment/quotas-owners/{id} traen, por cada cuota, un token JWT de
+    // vida corta (15 min) ya escopeado a esa cuota exacta (ver
+    // quota_view_token_issue() en routes/quotas.php) -- el <a href> sale
+    // armado directo con ese token, así que abre con UN solo clic normal,
+    // sin fetch ni window.open() de por medio: imposible de bloquear por
+    // ningún navegador.
+    function renderDocLinks(q) {
+        var parts = [];
+        if (q.receipt && q.receiptAvailable) {
+            parts.push('<a class="eoc-doc-link" href="' + escapeHtml(API_BASE + '/payment/get-file/' + q.id + '?token=' + encodeURIComponent(q.receiptViewToken)) + '" target="_blank" rel="noopener noreferrer">📎 Comprobante</a>');
+        }
+        if (q.receipt && !q.receiptAvailable) {
+            parts.push('<span class="eoc-badge historic" title="El comprobante original pertenece a la infraestructura V1 y no se migró; el pago sí quedó registrado.">🧾 Pago Registrado — Comprobante Histórico en Archivo</span>');
+        }
+        if (Number(q.status) === 2) {
+            parts.push('<a class="eoc-doc-link" href="' + escapeHtml(API_BASE + '/payment/receipt/' + q.id + '?token=' + encodeURIComponent(q.officialReceiptViewToken)) + '" target="_blank" rel="noopener noreferrer">🧾 Recibo oficial</a>');
+        }
+        return parts.length ? parts.join(' · ') : '—';
     }
 
     function renderData(data) {
         var items = data.items || [];
+        renderOwnerCard(data.user);
+
+        var folio = 'EDC-' + (currentUserId || '000') + '-' + Date.now();
+        document.getElementById('eoc-folio').textContent = folio;
+        document.getElementById('eoc-issue-date').textContent = formatDateColono(new Date());
 
         if (items.length === 0) {
             document.getElementById('eoc-content').innerHTML = '<p class="eoc-empty">No hay cuotas registradas todavía.</p>';
+            document.getElementById('eoc-status-banner').hidden = true;
             return;
         }
 
-        var totalPaid = 0, totalPending = 0;
+        var totalPendingHistoric = 0;
         var byYear = {};
+        var propertySet = {};
 
         items.forEach(function (q) {
             var amount = Number(q.amount) || 0;
-            if (Number(q.status) === 2) { totalPaid += amount; } else { totalPending += amount; }
+            if (Number(q.status) !== 2) { totalPendingHistoric += amount; }
+
+            var streetName = q.property && q.property.street ? q.property.street.name : '';
+            var propKey = q.property ? (streetName + '#' + q.property.numOficial) : 'sin-propiedad';
+            propertySet[propKey] = true;
 
             var date = q.dueDate ? new Date(q.dueDate) : null;
             var year = date ? date.getFullYear() : 'Sin fecha';
@@ -308,9 +557,19 @@
             byYear[year].push(q);
         });
 
-        document.getElementById('eoc-total-paid').textContent = fmtMoney(totalPaid);
-        document.getElementById('eoc-total-pending').textContent = fmtMoney(totalPending);
-        document.getElementById('eoc-total-quotas').textContent = items.length;
+        // Estatus general (2026-08-14): "Al Corriente" solo si NO hay saldo
+        // pendiente en todo el histórico -- no solo en el año que se esté
+        // viendo, que es justo lo que pedía el rediseño ("Resumen Ejecutivo
+        // Superior... Estatus General").
+        var statusBanner = document.getElementById('eoc-status-banner');
+        var isOk = totalPendingHistoric <= 0;
+        statusBanner.hidden = false;
+        statusBanner.className = 'eoc-status-banner ' + (isOk ? 'is-ok' : 'is-pending');
+        document.getElementById('eoc-status-icon').textContent = isOk ? '✅' : '⚠️';
+        document.getElementById('eoc-status-text').textContent = isOk ? 'Al Corriente' : ('Monto Pendiente: ' + fmtMoney(totalPendingHistoric));
+
+        document.getElementById('eoc-total-pending').textContent = fmtMoney(totalPendingHistoric);
+        document.getElementById('eoc-property-count').textContent = Object.keys(propertySet).length;
 
         var years = Object.keys(byYear).sort(function (a, b) { return b - a; });
         var currentYear = String(new Date().getFullYear());
@@ -321,30 +580,35 @@
         document.getElementById('eoc-year-tabs').innerHTML = tabsHtml;
 
         function renderYear(year) {
-            var quotas = byYear[year] || [];
-            var byMonth = {};
-            quotas.forEach(function (q) {
-                var date = q.dueDate ? new Date(q.dueDate) : null;
-                var m = date ? date.getMonth() : -1;
-                if (!byMonth[m]) { byMonth[m] = []; }
-                byMonth[m].push(q);
+            document.getElementById('eoc-period').textContent = year;
+            var quotas = (byYear[year] || []).slice().sort(function (a, b) {
+                return new Date(b.dueDate || 0) - new Date(a.dueDate || 0);
             });
 
-            var months = Object.keys(byMonth).sort(function (a, b) { return a - b; });
-            var html = '<div class="eoc-month-grid">';
-            months.forEach(function (m) {
-                var monthQuotas = byMonth[m];
-                var monthTotal = monthQuotas.reduce(function (sum, q) { return sum + (Number(q.amount) || 0); }, 0);
-                var allPaid = monthQuotas.every(function (q) { return Number(q.status) === 2; });
-                var monthName = m >= 0 ? MESES[m] : 'Sin fecha';
-                html += '<div class="eoc-month-card">'
-                    + '<p class="month-name">' + monthName + '</p>'
-                    + '<p class="month-amount">' + fmtMoney(monthTotal) + '</p>'
-                    + '<span class="eoc-badge ' + (allPaid ? 'paid">Pagado' : 'pending">Pendiente') + '</span>'
-                    + '</div>';
-            });
-            html += '</div>';
-            document.getElementById('eoc-content').innerHTML = html;
+            var yearTotal = quotas.reduce(function (sum, q) { return sum + (Number(q.amount) || 0); }, 0);
+            document.getElementById('eoc-total-year').textContent = fmtMoney(yearTotal);
+
+            var rows = quotas.map(function (q) {
+                var date = q.dueDate ? new Date(q.dueDate) : null;
+                var monthName = date ? MESES[date.getMonth()] + ' ' + date.getFullYear() : 'Sin fecha';
+                var propStreet = q.property && q.property.street ? q.property.street.name : '';
+                var propLabel = q.property ? escapeHtml(propStreet + ' #' + q.property.numOficial) : '—';
+                var isPaid = Number(q.status) === 2;
+                return '<tr>'
+                    + '<td>' + (q.payDate ? escapeHtml(formatDateColono(q.payDate)) : '—') + '</td>'
+                    + '<td style="text-transform:capitalize;">' + escapeHtml(monthName) + '</td>'
+                    + '<td>Cuota de mantenimiento — ' + propLabel + '</td>'
+                    + '<td>' + fmtMoney(q.amount) + '</td>'
+                    + '<td>' + renderDocLinks(q) + '</td>'
+                    + '<td><span class="eoc-badge ' + (isPaid ? 'paid">Pagado' : 'pending">Pendiente') + '</span></td>'
+                    + '</tr>';
+            }).join('');
+
+            document.getElementById('eoc-content').innerHTML =
+                '<div class="eoc-table-wrap"><table class="eoc-table">'
+                + '<thead><tr><th>Fecha de pago</th><th>Período cubierto</th><th>Concepto</th><th>Tarifa</th><th>Comprobante</th><th>Estado</th></tr></thead>'
+                + '<tbody>' + rows + '</tbody>'
+                + '</table></div>';
         }
 
         document.querySelectorAll('.eoc-year-tab').forEach(function (btn) {
@@ -358,7 +622,7 @@
         renderYear(years.indexOf(currentYear) >= 0 ? currentYear : years[0]);
     }
 
-    document.getElementById('eoc-print-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    document.getElementById('eoc-print-date').textContent = formatDateColono(new Date());
     fetchQuotas();
 })();
 </script>

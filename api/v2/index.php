@@ -95,6 +95,8 @@ try {
     require __DIR__ . '/routes/announcements.php';
     require __DIR__ . '/routes/dashboard.php';
     require __DIR__ . '/routes/admin.php';
+    require __DIR__ . '/routes/messages.php';
+    require __DIR__ . '/routes/caja.php';
 } catch (\Throwable $e) {
     error_log('[fidepaz_v2] Fallo cargando módulos internos: ' . $e->getMessage());
     fidepaz_json_fail(500, 'Error interno del servidor (carga de módulos)', $e);
@@ -113,7 +115,19 @@ try {
     // Angular llama a rutas bajo ese mismo prefijo público (apiUrl =
     // https://v2.fidepaz.org/api/v2) — se despoja aquí para que las rutas
     // internas (auth.php, properties.php, etc.) usen paths simples.
-    $path = '/' . trim((string) preg_replace('#^/api/v2#', '', $path), '/');
+    //
+    // 2026-08-11: el grupo "(/[^/]+)?" opcional al inicio tolera UN segmento
+    // extra antes de "/api/v2" -- necesario porque XAMPP local sirve este
+    // proyecto como subcarpeta (localhost/FidePaz.org/api/v2/...) mientras
+    // que producción monta la raíz del dominio directo (v2.fidepaz.org/api/v2/...,
+    // sin prefijo). CREDENCIALES_QA_INTERNAS.md ya documentaba que este front
+    // controller "no funciona bajo /FidePaz.org/ local" -- confirmado real,
+    // este es el fix. Es un superset seguro: contra una URL sin prefijo
+    // (producción, o el vhost fidepaz.local que monta la raíz igual que
+    // producción) el grupo opcional simplemente no matchea nada, mismo
+    // comportamiento de siempre -- no hay divergencia real de lógica entre
+    // entornos, solo tolerancia a UN prefijo de subcarpeta si existe.
+    $path = '/' . trim((string) preg_replace('#^(/[^/]+)?/api/v2#', '', $path), '/');
 
     if (($method === 'GET' || $method === 'HEAD') && $path === '/') {
         // Health check — mismo contrato que GET /api/v2 y /api/v2/ del backend Go.
@@ -199,6 +213,12 @@ try {
         handle_payment_owners();
     } elseif ($method === 'GET' && preg_match('#^/payment/get-file/(\d+)$#', $path, $m)) {
         handle_payment_get_file((int) $m[1]);
+    } elseif ($method === 'GET' && preg_match('#^/payment/receipt/(\d+)$#', $path, $m)) {
+        // Motor de Recibo Oficial V2.0 (2026-08-13, Objetivo 3) -- HTML
+        // renderizado al vuelo desde la BD, nunca desde un archivo guardado
+        // en disco/bucket. Cubre TODO el histórico (10,758 cuotas), no solo
+        // los pagos registrados desde Caja después de esta fecha.
+        handle_payment_receipt_view((int) $m[1]);
     } elseif ($method === 'POST' && $path === '/payment/upload-receipt') {
         handle_payment_upload_receipt();
     } elseif ($method === 'GET' && $path === '/payment') {
@@ -243,8 +263,14 @@ try {
         handle_comunicados_list();
     } elseif ($method === 'GET' && $path === '/informes') {
         handle_informes_list();
+    } elseif ($method === 'GET' && $path === '/avisos/years') {
+        handle_avisos_years();
+    } elseif ($method === 'GET' && $path === '/avisos') {
+        handle_avisos_feed();
     } elseif ($method === 'GET' && $path === '/announcements') {
         handle_announcements_admin_list();
+    } elseif ($method === 'POST' && $path === '/announcements/upload') {
+        handle_announcements_upload_pdf();
     } elseif ($method === 'POST' && $path === '/announcements') {
         handle_announcements_create();
     } elseif ($method === 'PUT' && preg_match('#^/announcements/(\d+)$#', $path, $m)) {
@@ -255,6 +281,26 @@ try {
         handle_catalog('streets');
     } elseif ($method === 'GET' && $path === '/catalog/quotas') {
         handle_catalog('quotas');
+    } elseif ($method === 'GET' && $path === '/messages/search-recipient') {
+        handle_messages_search_recipient();
+    } elseif ($method === 'GET' && $path === '/messages') {
+        handle_messages_list();
+    } elseif ($method === 'POST' && $path === '/messages/broadcast') {
+        handle_messages_broadcast();
+    } elseif ($method === 'POST' && $path === '/messages') {
+        handle_messages_create();
+    } elseif ($method === 'POST' && preg_match('#^/messages/(\d+)/reply$#', $path, $m)) {
+        handle_messages_reply((int) $m[1]);
+    } elseif ($method === 'PUT' && preg_match('#^/messages/(\d+)/status$#', $path, $m)) {
+        handle_messages_update_status((int) $m[1]);
+    } elseif ($method === 'GET' && preg_match('#^/messages/(\d+)$#', $path, $m)) {
+        handle_messages_detail((int) $m[1]);
+    } elseif ($method === 'GET' && $path === '/caja/search') {
+        handle_caja_search();
+    } elseif ($method === 'GET' && preg_match('#^/caja/pending/(\d+)$#', $path, $m)) {
+        handle_caja_pending((int) $m[1]);
+    } elseif ($method === 'POST' && $path === '/caja/register-payment') {
+        handle_caja_register_payment();
     } else {
         Response::error(404, "Ruta no encontrada: {$method} {$path}");
     }

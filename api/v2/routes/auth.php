@@ -16,7 +16,7 @@ function handle_auth_login(): void
 
     $pdo = Database::connection();
     $stmt = $pdo->prepare(
-        'SELECT id, email, name, role, password FROM `user` WHERE email = :email AND deleteAt IS NULL LIMIT 1'
+        'SELECT id, email, name, role, password, privacy FROM `user` WHERE email = :email AND deleteAt IS NULL LIMIT 1'
     );
     $stmt->execute(['email' => $email]);
     $user = $stmt->fetch();
@@ -43,10 +43,15 @@ function handle_auth_login(): void
         // nunca redirige al dashboard. Se conserva "token" por compatibilidad.
         'accessToken' => $token,
         'user'   => [
-            'id'    => (int) $user['id'],
-            'email' => $user['email'],
-            'name'  => $user['name'],
-            'role'  => $user['role'],
+            'id'      => (int) $user['id'],
+            'email'   => $user['email'],
+            'name'    => $user['name'],
+            'role'    => $user['role'],
+            // 2026-08-12: agregado para que panel/mi-cuenta.html sepa si mostrar
+            // el botón "Aceptar aviso de privacidad" o el recordatorio de que ya
+            // se aceptó, sin necesitar un endpoint aparte -- `privacy` es
+            // `TINYINT(1) NULL` en la BD, se normaliza aquí a boolean real.
+            'privacy' => (bool) $user['privacy'],
         ],
     ]);
 }

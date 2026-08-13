@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Reportes — Panel FidePaz</title>
+    <title>Estado de Cuenta — Panel FidePaz</title>
     <link rel="icon" href="../favicon.ico">
     <link rel="stylesheet" href="../assets/css/main.css">
     <link rel="stylesheet" href="panel.css">
@@ -46,7 +46,7 @@
 
     if (!getToken()) { goToLogin(); }
 
-    const content = renderShell('reportes', 'Reportes');
+    const content = renderShell('reportes', 'Estado de Cuenta');
 
     content.innerHTML = `
         <div class="reportes-summary">

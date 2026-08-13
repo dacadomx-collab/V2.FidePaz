@@ -57,32 +57,43 @@
 	# siempre incluye el prefijo completo /administrator/, jamás
 	# empieza en /api/ -- se retira por ser código muerto que nunca
 	# tuvo efecto real.
-	RewriteCond %{REQUEST_URI} ^/administrator/home/owners/resume
-	RewriteRule ^ /panel/mi-cuenta.html [R=302,L]
+	# 2026-08-11: "(/[^/]+)?" opcional al inicio de cada patrón tolera UN
+	# segmento de subcarpeta antes de "/administrator/" -- mismo caso que el
+	# fix de api/v2/index.php (XAMPP local sirve esto bajo
+	# localhost/FidePaz.org/administrator/..., producción monta la raíz
+	# directo). "%1" en cada RewriteRule reinyecta ese mismo prefijo
+	# capturado en el DESTINO -- sin esto, el redirect en local aterrizaba en
+	# localhost/panel/... (fuera del docroot real del proyecto, 404) en vez
+	# de localhost/FidePaz.org/panel/... -- confirmado con curl, no era
+	# solo teórico. Superset seguro: contra una URL ya sin prefijo
+	# (producción, o el vhost fidepaz.local) el grupo opcional no matchea
+	# nada, "%1" queda vacío, mismo destino de antes.
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/owners/resume
+	RewriteRule ^ %1/panel/mi-cuenta.html [R=302,L]
 
-	RewriteCond %{REQUEST_URI} ^/administrator/home/quotas
-	RewriteRule ^ /panel/cuotas.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/quotas
+	RewriteRule ^ %1/panel/cuotas.html [R=302,L]
 
-	RewriteCond %{REQUEST_URI} ^/administrator/home/owners
-	RewriteRule ^ /panel/propietarios.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/owners
+	RewriteRule ^ %1/panel/propietarios.html [R=302,L]
 
-	RewriteCond %{REQUEST_URI} ^/administrator/home/properties
-	RewriteRule ^ /panel/propiedades.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/properties
+	RewriteRule ^ %1/panel/propiedades.html [R=302,L]
 
-	RewriteCond %{REQUEST_URI} ^/administrator/home/payments
-	RewriteRule ^ /panel/pagos.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/payments
+	RewriteRule ^ %1/panel/pagos.html [R=302,L]
 
-	RewriteCond %{REQUEST_URI} ^/administrator/home/reports
-	RewriteRule ^ /panel/reportes.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/reports
+	RewriteRule ^ %1/panel/reportes.html [R=302,L]
 
-	RewriteCond %{REQUEST_URI} ^/administrator/home/comunicados
-	RewriteRule ^ /panel/comunicados.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/home/comunicados
+	RewriteRule ^ %1/panel/comunicados.html [R=302,L]
 
 	# Catch-all: cualquier otra ruta bajo /administrator/ (raíz, login,
 	# chunks compilados, rutas no mapeadas arriba) -> pantalla de login
 	# del panel nuevo.
-	RewriteCond %{REQUEST_URI} ^/administrator/
-	RewriteRule ^ /panel/login.html [R=302,L]
+	RewriteCond %{REQUEST_URI} ^(/[^/]+)?/administrator/
+	RewriteRule ^ %1/panel/login.html [R=302,L]
 
 	RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -f [OR]
 	RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -d

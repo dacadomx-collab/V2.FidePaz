@@ -32,8 +32,14 @@ MySQL de cPanel salvo ventana de diagnóstico temporal y documentada.
 ## 3. PENDIENTE DE AUTORIZACIÓN EXPLÍCITA (Mandamiento #9)
 
 - Capa de observabilidad (LAYER_2) real para `backend/` — no diseñada aún.
-- Endpoints de pagos/reportes/PDF del panel `/administrator` (`payments`, `reports`, `resume`,
-  `state-owner` — ver `knowledge/07_UI_MODULOS_Y_PANTALLAS.md`) — lógica de negocio no disponible.
+- ~~Endpoints de pagos/reportes/PDF del panel `/administrator`~~ — **resuelto.** El panel real es
+  `/panel/` (no `/administrator/`, retirado Fase 8/9), y la lógica de negocio de pagos/reportes SÍ
+  existe: `pagos.html`, `reportes.html` ("Estado de Cuenta"), Módulo de Caja (`caja.html`,
+  `super_admin` únicamente, `POST /caja/register-payment` con recibo oficial), generación mensual
+  automática de cuotas (`api/v2/cli/generate_monthly_quotas.php`, cron) y mensajería interna
+  colono↔administración (`mensajes.html`, tablas `messages`/`message_replies`). Definiciones
+  exactas de tablas en `knowledge/02_CODEX_Y_SCHEMA_MAESTRO.md`, contrato completo de endpoints en
+  `knowledge/03_CONTRATOS_API_Y_RUTAS.md` (2026-08-13).
 - Contenido editorial definitivo de la web pública (textos institucionales, misión/visión reales
   de la Asociación de Colonos) — el `index.html` de esta sesión usa placeholders de contenido
   explícitamente marcados donde no hay texto oficial confirmado por el Arquitecto.

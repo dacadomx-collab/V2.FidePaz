@@ -2,6 +2,95 @@
 declare(strict_types=1);
 
 /**
+ * Degradación elegante para comprobantes históricos V1 (2026-08-13):
+ * `user_quotas.receipt` puede apuntar a un archivo que nunca se migró desde
+ * la infraestructura aislada de Google Cloud de la V1 (ver
+ * handle_payment_get_file() más abajo -- el mismo criterio de basename()
+ * para no permitir path traversal). Se expone como campo `receiptAvailable`
+ * en las respuestas de listado para que el frontend pueda decidir, sin
+ * intentar la descarga primero, si debe ofrecer el botón real o el badge
+ * institucional "Comprobante Histórico en Archivo".
+ */
+function quota_receipt_is_available(?string $receipt): bool
+{
+    if ($receipt === null || $receipt === '') {
+        return false;
+    }
+    $safeName = basename($receipt);
+    if ($safeName === '') {
+        return false;
+    }
+    return is_file(__DIR__ . '/../../../assets/uploads/receipts/' . $safeName);
+}
+
+/**
+ * Folio del Recibo Oficial (usado por handle_payment_receipt_view() más
+ * abajo): si la cuota ya tenía un official_receipt_url generado en su
+ * momento por Caja (nombre de archivo recibo_{folio}_{hex16}.html), se
+ * reutiliza ese MISMO folio -- para que la vista dinámica coincida con
+ * cualquier copia estática vieja que alguien tenga guardada/impresa. Si
+ * nunca tuvo uno (todo el histórico migrado de la V1, pagado años antes de
+ * que existiera esta función), se sintetiza uno determinístico a partir de
+ * datos reales (id de la cuota + año del pago) -- nunca inventado, siempre
+ * el mismo cada vez que se vuelve a pedir el mismo recibo.
+ */
+/**
+ * Enlaces directos de un clic (2026-08-14) -- solución de raíz al problema
+ * del doble clic para abrir comprobante/recibo. Antes: el botón fetcheaba
+ * el archivo con el header Authorization y RECIÉN AHÍ se convertía en un
+ * <a> real, obligando a un segundo clic humano (único mecanismo 100%
+ * inmune a bloqueadores de pop-up sin tocar el backend). Ahora: cada fila
+ * de /payment/owners, /payment/filter y /payment/quotas-owners/{id} viene
+ * con un token JWT de vida corta (15 min), ESCOPEADO a esa cuota exacta y
+ * a un solo propósito ('comprobante' o 'recibo') -- reutiliza Jwt.php tal
+ * cual, misma firma HMAC que ya protege el login, sin criptografía nueva.
+ * El frontend arma directo un <a href="...&token=..."> desde el primer
+ * render de la fila; un clic humano sobre ESE link jamás puede ser
+ * bloqueado por ningún navegador, porque nunca hay un window.open() de
+ * por medio ni un fetch previo -- es una navegación normal de toda la
+ * vida. handle_payment_get_file()/handle_payment_receipt_view() aceptan
+ * este token como alternativa al header Authorization (una navegación de
+ * <a href> nunca puede mandar headers custom) -- si no viene un token
+ * válido, caen al flujo de siempre (Bearer + dueño/rol), sin romper a
+ * ningún consumidor existente que sí pida el archivo por fetch.
+ */
+function quota_view_token_issue(int $quotaId, int $userId, string $purpose): string
+{
+    return Jwt::issue(
+        ['quotaId' => $quotaId, 'userId' => $userId, 'purpose' => $purpose],
+        Env::required('JWT_SECRET'),
+        900 // 15 minutos -- suficiente para que el colono llegue a dar clic, corto para limitar exposición si el link se comparte/filtra
+    );
+}
+
+/** @return array<string,mixed>|null claims si el token es válido, corresponde a esa cuota y a ese propósito exacto; null en cualquier otro caso */
+function quota_view_token_verify(string $token, int $expectedQuotaId, string $expectedPurpose): ?array
+{
+    $claims = Jwt::verify($token, Env::required('JWT_SECRET'));
+    if ($claims === null) {
+        return null;
+    }
+    if (($claims['purpose'] ?? null) !== $expectedPurpose) {
+        return null;
+    }
+    if ((int) ($claims['quotaId'] ?? -1) !== $expectedQuotaId) {
+        return null;
+    }
+    return $claims;
+}
+
+function quota_receipt_folio(array $row): string
+{
+    $stored = (string) ($row['official_receipt_url'] ?? '');
+    if ($stored !== '' && preg_match('#recibo_(.+)_[a-f0-9]{16}\.html$#', basename($stored), $m)) {
+        return $m[1];
+    }
+    $payDate = (string) ($row['pay_date'] ?? $row['due_date'] ?? '');
+    $ts = $payDate !== '' ? strtotime($payDate) : false;
+    return sprintf('FIDEPAZ-%s-%06d', date('Y', $ts !== false ? $ts : time()), (int) $row['id']);
+}
+
+/**
  * GET /user-quotas?property_id=123&from=2026-01-01&to=2026-12-31&status=1
  * Todos los filtros son opcionales; usa los índices compuestos de schema.sql.
  */
@@ -272,7 +361,16 @@ function handle_quota_byterm(): void
  */
 function handle_payments_list(): void
 {
-    Auth::requireUser();
+    // Hallazgo de seguridad (2026-08-12, auditoría RBAC pedida por el
+    // Arquitecto): esta ruta -- backend real de panel/pagos.html, el
+    // listado ADMIN de TODOS los pagos de TODOS los colonos -- no tenía
+    // ningún requireRole() hasta ahora. Cualquier usuario autenticado,
+    // incluido un colono con role=owner, podía llamarla directo y ver los
+    // datos de pago de cualquier otro propietario. Restringido a
+    // super_admin (no admin) como parte del nuevo esquema de roles: el
+    // módulo "Pagos" completo queda fuera del alcance de role=admin.
+    $claims = Auth::requireUser();
+    Auth::requireRole($claims, ['super_admin']);
 
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $pageSize = 20;
@@ -350,7 +448,7 @@ function handle_payments_list(): void
     $countStmt->execute($params);
     $total = (int) $countStmt->fetchColumn();
 
-    $sql = 'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt,
+    $sql = 'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt, uq.official_receipt_url,
                    u.id AS user_id, u.name AS user_name, u.code AS user_code,
                    p.id AS property_id, p.numOficial, s.name AS street_name
             FROM user_quotas uq
@@ -369,6 +467,8 @@ function handle_payments_list(): void
     $stmt->execute();
 
     $items = array_map(static function (array $r): array {
+        $receiptAvailable = quota_receipt_is_available($r['receipt']);
+        $isPaid = (int) $r['status'] === 2;
         return [
             'id' => $r['id'],
             'status' => $r['status'],
@@ -376,6 +476,10 @@ function handle_payments_list(): void
             'dueDate' => Response::isoDate($r['due_date']),
             'payDate' => Response::isoDate($r['pay_date']),
             'receipt' => $r['receipt'],
+            'receiptAvailable' => $receiptAvailable,
+            'receiptViewToken' => $receiptAvailable ? quota_view_token_issue((int) $r['id'], (int) $r['user_id'], 'comprobante') : null,
+            'officialReceiptUrl' => $r['official_receipt_url'],
+            'officialReceiptViewToken' => $isPaid ? quota_view_token_issue((int) $r['id'], (int) $r['user_id'], 'recibo') : null,
             'user' => ['id' => $r['user_id'], 'name' => $r['user_name'], 'code' => $r['user_code']],
             'property' => [
                 'id' => $r['property_id'],
@@ -519,7 +623,17 @@ function handle_payment_download_report_state(int $userId): void
  */
 function handle_payment_quotas_owner(int $userId): void
 {
-    Auth::requireUser();
+    $claims = Auth::requireUser();
+
+    // Hallazgo de seguridad (2026-08-14, auditoría del rediseño de
+    // Estado de Cuenta): esta ruta no tenía NINGÚN control de propiedad --
+    // cualquier colono autenticado (role=owner) podía ver el historial
+    // completo de pagos de CUALQUIER OTRO colono con solo cambiar
+    // ?userId= en la URL. admin/super_admin sí pueden consultar cualquier
+    // colono (es su trabajo); un owner solo puede consultar el suyo.
+    if (($claims['role'] ?? '') === 'owner' && (int) $claims['sub'] !== $userId) {
+        Response::error(403, 'No tienes permiso para ver el estado de cuenta de otro colono');
+    }
 
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $pageSize = 20;
@@ -538,12 +652,28 @@ function handle_payment_quotas_owner(int $userId): void
 
     $pdo = Database::connection();
 
+    $userStmt = $pdo->prepare(
+        "SELECT id, name, email, code, phone, cellphone FROM `user` WHERE id = ? AND deleteAt IS NULL"
+    );
+    $userStmt->execute([$userId]);
+    $user = $userStmt->fetch();
+    if ($user === false) {
+        Response::error(404, 'Colono no encontrado');
+    }
+
     $countStmt = $pdo->prepare('SELECT COUNT(*) FROM user_quotas uq WHERE ' . implode(' AND ', $where));
     $countStmt->execute($params);
     $total = (int) $countStmt->fetchColumn();
 
-    $sql = 'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt
+    // Rediseño Estado de Cuenta (2026-08-14): se agregan property/street
+    // (dirección/lote) y official_receipt_url -- el reporte bancario nuevo
+    // necesita ambos y esta ruta antes no los traía (a diferencia de
+    // /payment/owners, que sí).
+    $sql = 'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt, uq.official_receipt_url,
+                   p.numOficial, s.name AS street_name
             FROM user_quotas uq
+            LEFT JOIN property p ON p.id = uq.property_id
+            LEFT JOIN street s ON s.id = p.street_id
             WHERE ' . implode(' AND ', $where) . '
             ORDER BY uq.due_date DESC
             LIMIT :limit OFFSET :offset';
@@ -555,7 +685,9 @@ function handle_payment_quotas_owner(int $userId): void
     $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
 
-    $items = array_map(static function (array $r): array {
+    $items = array_map(static function (array $r) use ($userId): array {
+        $receiptAvailable = quota_receipt_is_available($r['receipt']);
+        $isPaid = (int) $r['status'] === 2;
         return [
             'id' => $r['id'],
             'status' => $r['status'],
@@ -563,11 +695,25 @@ function handle_payment_quotas_owner(int $userId): void
             'dueDate' => Response::isoDate($r['due_date']),
             'payDate' => Response::isoDate($r['pay_date']),
             'receipt' => $r['receipt'],
+            'receiptAvailable' => $receiptAvailable,
+            'receiptViewToken' => $receiptAvailable ? quota_view_token_issue((int) $r['id'], $userId, 'comprobante') : null,
+            'officialReceiptUrl' => $r['official_receipt_url'],
+            'officialReceiptViewToken' => $isPaid ? quota_view_token_issue((int) $r['id'], $userId, 'recibo') : null,
+            // Misma forma anidada que /payment/owners (property.street.name,
+            // no un streetName plano) -- las dos rutas alimentan la misma
+            // página (reportes/estado-de-cuenta.html) y deben devolver
+            // exactamente la misma forma para que el frontend no necesite
+            // dos ramas distintas de lectura.
+            'property' => ['numOficial' => $r['numOficial'], 'street' => ['name' => $r['street_name']]],
         ];
     }, $stmt->fetchAll());
 
     Response::json(200, [
         'status' => 'ok',
+        'user' => [
+            'id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'],
+            'code' => $user['code'], 'phone' => $user['phone'], 'cellphone' => $user['cellphone'],
+        ],
         'items' => $items,
         'meta' => [
             'total' => $total,
@@ -601,8 +747,19 @@ function handle_payment_owners(): void
     $userId = (int) $claims['sub'];
 
     $pdo = Database::connection();
+
+    // "user" agregado 2026-08-14 (rediseño Estado de Cuenta) -- aditivo,
+    // no rompe el consumidor legado que solo lee items/total (ver docblock
+    // arriba): una clave nueva en la respuesta nunca afecta a un lector
+    // que ignora claves que no conoce.
+    $userStmt = $pdo->prepare(
+        "SELECT id, name, email, code, phone, cellphone FROM `user` WHERE id = ? AND deleteAt IS NULL"
+    );
+    $userStmt->execute([$userId]);
+    $userRow = $userStmt->fetch();
+
     $stmt = $pdo->prepare(
-        'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt,
+        'SELECT uq.id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.receipt, uq.official_receipt_url,
                 p.id AS property_id, p.numOficial, s.name AS street_name
          FROM user_quotas uq
          LEFT JOIN property p ON p.id = uq.property_id
@@ -613,7 +770,9 @@ function handle_payment_owners(): void
     $stmt->bindValue('user_id', $userId, PDO::PARAM_INT);
     $stmt->execute();
 
-    $items = array_map(static function (array $r): array {
+    $items = array_map(static function (array $r) use ($userId): array {
+        $receiptAvailable = quota_receipt_is_available($r['receipt']);
+        $isPaid = (int) $r['status'] === 2;
         return [
             'id' => $r['id'],
             'status' => $r['status'],
@@ -621,6 +780,10 @@ function handle_payment_owners(): void
             'dueDate' => Response::isoDate($r['due_date']),
             'payDate' => Response::isoDate($r['pay_date']),
             'receipt' => $r['receipt'],
+            'receiptAvailable' => $receiptAvailable,
+            'receiptViewToken' => $receiptAvailable ? quota_view_token_issue((int) $r['id'], $userId, 'comprobante') : null,
+            'officialReceiptUrl' => $r['official_receipt_url'],
+            'officialReceiptViewToken' => $isPaid ? quota_view_token_issue((int) $r['id'], $userId, 'recibo') : null,
             'property' => [
                 'id' => $r['property_id'],
                 'numOficial' => $r['numOficial'],
@@ -630,7 +793,14 @@ function handle_payment_owners(): void
         ];
     }, $stmt->fetchAll());
 
-    Response::json(200, ['items' => $items, 'total' => count($items)]);
+    Response::json(200, [
+        'items' => $items,
+        'total' => count($items),
+        'user' => $userRow !== false ? [
+            'id' => $userRow['id'], 'name' => $userRow['name'], 'email' => $userRow['email'],
+            'code' => $userRow['code'], 'phone' => $userRow['phone'], 'cellphone' => $userRow['cellphone'],
+        ] : null,
+    ]);
 }
 
 /**
@@ -654,16 +824,42 @@ function handle_payment_owners(): void
  */
 function handle_payment_get_file(int $quotaId): void
 {
-    $claims = Auth::requireUser();
-
     $pdo = Database::connection();
     $stmt = $pdo->prepare('SELECT user_id, receipt FROM user_quotas WHERE id = ?');
     $stmt->execute([$quotaId]);
     $row = $stmt->fetch();
-
-    $isOwner = ($claims['role'] ?? '') === 'owner';
-    if ($row === false || ($isOwner && (int) $row['user_id'] !== (int) $claims['sub'])) {
+    if ($row === false) {
         Response::error(404, 'Comprobante no encontrado');
+    }
+
+    // Enlace directo de un clic (2026-08-14): si viene un ?token= válido
+    // (emitido por /payment/owners, /payment/filter o
+    // /payment/quotas-owners/{id}, ver quota_view_token_issue()), ya está
+    // escopeado a ESTA cuota exacta y basta como autorización -- una
+    // navegación de <a href> normal nunca manda el header Authorization,
+    // así que este es el único modo en que un clic humano directo puede
+    // funcionar sin JS de por medio. Si no viene un token válido, cae al
+    // flujo de siempre (Bearer + dueño/rol), sin romper a quien todavía
+    // pida el archivo por fetch con el header.
+    $token = (string) ($_GET['token'] ?? '');
+    $viaToken = $token !== '' && quota_view_token_verify($token, $quotaId, 'comprobante') !== null;
+
+    if (!$viaToken) {
+        $claims = Auth::requireUser();
+        $role = $claims['role'] ?? '';
+
+        // Módulo "Pagos" restringido a super_admin (2026-08-12) -- un colono
+        // (owner) sigue pudiendo bajar SU PROPIO comprobante (no es parte del
+        // módulo admin de Pagos, es autoservicio), pero role=admin ya no puede
+        // bajar comprobantes ajenos vía esta ruta, solo super_admin.
+        if ($role !== 'owner') {
+            Auth::requireRole($claims, ['super_admin']);
+        }
+
+        $isOwner = $role === 'owner';
+        if ($isOwner && (int) $row['user_id'] !== (int) $claims['sub']) {
+            Response::error(404, 'Comprobante no encontrado');
+        }
     }
 
     $receipt = (string) ($row['receipt'] ?? '');
@@ -696,6 +892,85 @@ function handle_payment_get_file(int $quotaId): void
 }
 
 /**
+ * GET /payment/receipt/{id} — Recibo Oficial de Pago, HTML/print
+ * renderizado AL VUELO desde la BD (Objetivo 3, 2026-08-13). No depende de
+ * ningún archivo en disco ni bucket externo: reconstruye el mismo
+ * documento que handle_caja_register_payment() guarda como copia estática,
+ * usando la misma función pura caja_build_receipt_html() (definida en
+ * routes/caja.php, disponible aquí porque index.php requiere todos los
+ * archivos de routes/ antes de despachar cualquier request) a partir de
+ * columnas que ya existen en user_quotas/user/property/street. Por eso
+ * cubre también el histórico completo migrado de la V1 -- cuotas pagadas
+ * años antes de que existiera Caja, que jamás tuvieron official_receipt_url
+ * -- no solo los pagos nuevos.
+ *
+ * Mismo criterio de autoservicio que handle_payment_get_file(): un colono
+ * (owner) puede ver el recibo de SU PROPIA cuota; cualquier otro rol
+ * requiere super_admin.
+ */
+function handle_payment_receipt_view(int $quotaId): void
+{
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare(
+        'SELECT uq.id, uq.user_id, uq.status, uq.amount, uq.due_date, uq.pay_date, uq.official_receipt_url,
+                p.numOficial, s.name AS street_name,
+                u.name AS user_name, u.code AS user_code, u.email AS user_email
+         FROM user_quotas uq
+         LEFT JOIN property p ON p.id = uq.property_id
+         LEFT JOIN street s ON s.id = p.street_id
+         LEFT JOIN `user` u ON u.id = uq.user_id
+         WHERE uq.id = ?'
+    );
+    $stmt->execute([$quotaId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        Response::error(404, 'Cuota no encontrada');
+    }
+
+    // Enlace directo de un clic (2026-08-14) -- mismo criterio que
+    // handle_payment_get_file(): un ?token= válido y escopeado a esta
+    // cuota basta como autorización, sin exigir el header Authorization
+    // que una navegación de <a href> normal nunca puede mandar.
+    $token = (string) ($_GET['token'] ?? '');
+    $viaToken = $token !== '' && quota_view_token_verify($token, $quotaId, 'recibo') !== null;
+
+    if (!$viaToken) {
+        $claims = Auth::requireUser();
+        $role = $claims['role'] ?? '';
+        if ($role !== 'owner') {
+            Auth::requireRole($claims, ['super_admin']);
+        }
+        $isOwner = $role === 'owner';
+        if ($isOwner && (int) $row['user_id'] !== (int) $claims['sub']) {
+            Response::error(404, 'Cuota no encontrada');
+        }
+    }
+
+    if ((int) $row['status'] !== 2) {
+        Response::error(400, 'Esta cuota todavía no está pagada -- no hay recibo que generar.');
+    }
+
+    $folio = quota_receipt_folio($row);
+    $propertyLabel = trim((string) $row['street_name'] . ' #' . $row['numOficial']);
+    $months = [[
+        'dueDate' => $row['due_date'],
+        'amount' => (float) $row['amount'],
+        'property' => $propertyLabel,
+    ]];
+    $user = ['name' => $row['user_name'], 'code' => $row['user_code'], 'email' => $row['user_email']];
+    $payDate = (string) ($row['pay_date'] ?? $row['due_date']);
+
+    $html = caja_build_receipt_html($folio, $user, $months, (float) $row['amount'], $payDate);
+
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: text/html; charset=UTF-8');
+    }
+    echo $html;
+    exit;
+}
+
+/**
  * POST /payment/upload-receipt (multipart/form-data: quotaId, file)
  * (admin/super_admin) — Tarea aprobada 2026-08-10: subir el comprobante
  * real de una cuota (transferencia, depósito, etc.) en vez de solo marcar
@@ -711,8 +986,10 @@ function handle_payment_get_file(int $quotaId): void
  */
 function handle_payment_upload_receipt(): void
 {
+    // Módulo "Pagos" restringido a super_admin (2026-08-12) -- ver nota en
+    // handle_payments_list().
     $claims = Auth::requireUser();
-    Auth::requireRole($claims, ['admin', 'super_admin']);
+    Auth::requireRole($claims, ['super_admin']);
 
     $quotaId = (int) ($_POST['quotaId'] ?? 0);
     if ($quotaId <= 0) {
@@ -1002,8 +1279,23 @@ function handle_quota_generate_period(): void
         Response::error(400, 'period es obligatorio, formato YYYY-MM');
     }
 
-    $pdo = Database::connection();
+    $result = generate_quotas_for_period(Database::connection(), $period, $dryRun, (int) $claims['sub']);
 
+    Response::json(200, ['status' => 'ok'] + $result);
+}
+
+/**
+ * Núcleo de la generación de cuotas, extraído 2026-08-13 de
+ * handle_quota_generate_period() para poder reusarlo también desde
+ * api/v2/cli/generate_monthly_quotas.php (cron real, sin JWT ni HTTP --
+ * ver ese archivo). $actorUserId es null cuando lo dispara el sistema
+ * (cron) en vez de un admin autenticado -- Audit::log ya acepta
+ * changed_by NULL (columna NULLable, "ON DELETE SET NULL" en el schema).
+ *
+ * @return array{dryRun:bool,period:string,created:array,skippedExisting:array,skippedNoOwner:array,summary:array}
+ */
+function generate_quotas_for_period(PDO $pdo, string $period, bool $dryRun, ?int $actorUserId): array
+{
     $properties = $pdo->query(
         'SELECT id, quota_id, due_day FROM property WHERE deleteAt IS NULL AND quota_id IS NOT NULL'
     )->fetchAll();
@@ -1063,7 +1355,7 @@ function handle_quota_generate_period(): void
                 );
                 $insertStmt->execute([$dueDate, (float) $cost, (int) $ownerId, $propertyId]);
                 $newId = (int) $pdo->lastInsertId();
-                Audit::log('user_quotas', $newId, 'create', (int) $claims['sub'], [
+                Audit::log('user_quotas', $newId, 'create', $actorUserId, [
                     'after' => ['due_date' => $dueDate, 'amount' => (float) $cost, 'user_id' => (int) $ownerId, 'property_id' => $propertyId, 'source' => 'generate-period'],
                 ]);
             }
@@ -1081,8 +1373,7 @@ function handle_quota_generate_period(): void
         throw $e;
     }
 
-    Response::json(200, [
-        'status' => 'ok',
+    return [
         'dryRun' => $dryRun,
         'period' => $period,
         'created' => $created,
@@ -1093,7 +1384,7 @@ function handle_quota_generate_period(): void
             'skippedExistingCount' => count($skippedExisting),
             'skippedNoOwnerCount' => count($skippedNoOwner),
         ],
-    ]);
+    ];
 }
 
 /**
@@ -1113,8 +1404,10 @@ function handle_quota_generate_period(): void
  */
 function handle_payment_pay(int $id): void
 {
+    // Módulo "Pagos" restringido a super_admin (2026-08-12) -- ver nota en
+    // handle_payments_list().
     $claims = Auth::requireUser();
-    Auth::requireRole($claims, ['admin', 'super_admin']);
+    Auth::requireRole($claims, ['super_admin']);
 
     $pdo = Database::connection();
     $existing = $pdo->prepare('SELECT id, status, amount, receipt FROM user_quotas WHERE id = ?');

@@ -147,14 +147,25 @@ ServerSignature Off
 </IfModule>
 
 # ── NIVEL 7: CACHÉ DE ACTIVOS ESTÁTICOS ──────────────────────────────────────
+# CSS/JS bajados a "access plus 0 seconds" (2026-08-14, hallazgo real): con
+# "1 month" cualquier fix a panel/js/*.js o panel/panel.css quedaba INVISIBLE
+# hasta un mes después para cualquier colono que ya hubiera cargado la página
+# una vez -- el navegador ni siquiera vuelve a preguntarle al servidor, sirve
+# la copia vieja directo desde su caché local. Esto explicó por completo un
+# reporte real de "sigo con el mismo problema" después de varios fixes ya
+# aplicados y verificados en el archivo. "0 seconds" fuerza una revalidación
+# condicional (If-None-Match/ETag) en cada carga -- sigue siendo barato
+# (un 304 si no cambió), pero un cambio real SIEMPRE llega de inmediato.
+# Mismo criterio que ya se usaba para JSON. Imágenes se quedan con caché
+# larga -- esas sí son estables una vez subidas.
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType image/jpeg "access plus 1 year"
     ExpiresByType image/png  "access plus 1 year"
     ExpiresByType image/webp "access plus 1 year"
     ExpiresByType image/svg+xml "access plus 1 year"
-    ExpiresByType text/css   "access plus 1 month"
-    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/css   "access plus 0 seconds"
+    ExpiresByType application/javascript "access plus 0 seconds"
     ExpiresByType application/json "access plus 0 seconds"
 </IfModule>
 

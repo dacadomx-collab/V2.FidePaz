@@ -137,3 +137,21 @@ composer.phar
 # 6+ GB de binarios/zips, y contiene dumps SQL con PII real de colonos
 # (correos, teléfonos, hashes bcrypt) — nunca debe llegar a un remoto git.
 /BackUp_28_Julio_2026/
+
+# ── ARCHIVOS SUBIDOS/GENERADOS EN RUNTIME (2026-08-14) ───────────────────────
+# Comprobantes de pago reales de colonos, recibos oficiales generados en
+# cada cobro, PDFs de comunicados -- son datos operativos, no código fuente
+# (mismo criterio que *.sql arriba). Se preserva la estructura de carpetas
+# vía .gitkeep para que un deploy nuevo tenga dónde escribir.
+/assets/uploads/receipts/*
+/assets/uploads/official_receipts/*
+/assets/uploads/comunicados/*
+!/assets/uploads/receipts/.gitkeep
+!/assets/uploads/receipts/.htaccess
+!/assets/uploads/official_receipts/.gitkeep
+!/assets/uploads/official_receipts/.htaccess
+!/assets/uploads/comunicados/.gitkeep
+!/assets/uploads/comunicados/.htaccess
+
+# ── ESTADO DE RATE-LIMITING (runtime, no versionar) ──────────────────────────
+/api/v2/storage/ratelimit/*.json

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Comunicados — Panel FidePaz</title>
+    <title>Informes Financieros — Panel FidePaz</title>
     <link rel="icon" href="../favicon.ico">
     <link rel="stylesheet" href="../assets/css/main.css">
     <link rel="stylesheet" href="panel.css">
@@ -20,11 +20,11 @@
 
     if (!getToken()) { goToLogin(); }
 
-    const content = renderShell('comunicados', 'Comunicados');
+    const content = renderShell('informes', 'Informes Financieros');
 
     content.innerHTML = `
         <div class="panel-toolbar">
-            <button type="button" class="btn" id="btn-nuevo">+ Nuevo comunicado</button>
+            <button type="button" class="btn" id="btn-nuevo">+ Nuevo informe</button>
         </div>
         <div id="table-mount"></div>
         <div id="modal-mount"></div>
@@ -34,26 +34,31 @@
     const modalMount = document.getElementById('modal-mount');
     const rowsById = new Map();
 
-    const CATEGORY_LABEL = { comunicados: 'Comunicados', financiero: 'Financiero', reportes: 'Reportes' };
-
     const table = createDataTable(tableMount, {
-        searchPlaceholder: 'Buscar por título…',
-        emptyMessage: 'No hay comunicados con ese criterio.',
+        searchPlaceholder: 'Buscar informe por título…',
+        emptyMessage: 'No hay informes financieros con ese criterio.',
         defaultSortKey: 'published_at',
         defaultSortDir: 'desc',
         columns: [
             { key: 'title', label: 'Título', sortable: true },
-            { key: 'category', label: 'Categoría', sortable: true, render: (i) => CATEGORY_LABEL[i.category] || i.category },
+            { key: 'published_at', label: 'Fecha del informe', sortable: true, render: (i) => (i.published_at || '').slice(0, 10) || '—' },
             { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge">${i.status === 'published' ? 'Publicado' : 'Borrador'}</span>` },
             { key: 'visibility', label: 'Visibilidad', render: (i) => `<span class="panel-badge">${i.visibility === 'public' ? '🌐 Público' : '🔒 Privado'}</span>` },
-            { key: 'published_at', label: 'Publicado', sortable: true, render: (i) => (i.published_at || '').slice(0, 10) || '—' },
+            { key: 'archivo_pdf_url', label: 'PDF', render: (i) => {
+                if (!i.archivo_pdf_url) { return '—'; }
+                const url = escapeHtml(resolveDocUrl(i.archivo_pdf_url));
+                return `<a href="${url}" target="_blank">👁 Ver</a> · <a href="${url}" download>⬇ Descargar</a>`;
+            } },
         ],
         renderActions: (item) => `
             <button type="button" data-action="edit" title="Editar">✏️</button>
             <button type="button" data-action="delete" title="Eliminar">🗑️</button>
         `,
         fetchPage: async ({ search, sortKey, sortDir, page }) => {
-            const data = await api.get('/announcements', { q: search, sortKey, sortDir, page });
+            // category='reportes' fijo -- este módulo gestiona únicamente los
+            // Informes Financieros, no Comunicados/Financiero (ver panel/comunicados.html
+            // para esas dos categorías). Misma tabla `announcements`, mismo endpoint admin.
+            const data = await api.get('/announcements', { q: search, category: 'reportes', sortKey, sortDir, page });
             data.items.forEach((item) => rowsById.set(String(item.id), item));
             return { items: data.items, meta: data.meta };
         },
@@ -83,26 +88,23 @@
         modalMount.innerHTML = `
             <div class="panel-modal-overlay">
                 <div class="panel-modal">
-                    <h2>${id ? 'Editar comunicado' : 'Nuevo comunicado'}</h2>
-                    <form id="ann-form">
+                    <h2>${id ? 'Editar informe' : 'Nuevo informe financiero'}</h2>
+                    <form id="inf-form">
                         <div class="panel-form-field">
                             <label for="f-title">Título</label>
-                            <input type="text" id="f-title" required value="${item ? escapeHtml(item.title) : ''}">
+                            <input type="text" id="f-title" required value="${item ? escapeHtml(item.title) : ''}" placeholder="Ej. Reporte de cuotas y gastos — Agosto 2026">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-date">Fecha del informe (periodo que reporta)</label>
+                            <input type="date" id="f-date" required value="${item && item.published_at ? item.published_at.slice(0, 10) : ''}">
                         </div>
                         <div class="panel-form-field">
                             <label for="f-excerpt">Resumen (opcional)</label>
                             <input type="text" id="f-excerpt" value="${item ? escapeHtml(item.excerpt) : ''}">
                         </div>
                         <div class="panel-form-field">
-                            <label for="f-content">Contenido</label>
-                            <textarea id="f-content" class="panel-textarea" rows="6" required>${item ? escapeHtml(item.content) : ''}</textarea>
-                        </div>
-                        <div class="panel-form-field">
-                            <label for="f-category">Categoría</label>
-                            <select id="f-category">
-                                <option value="comunicados" ${!item || item.category === 'comunicados' ? 'selected' : ''}>Comunicados</option>
-                                <option value="financiero" ${item && item.category === 'financiero' ? 'selected' : ''}>Financiero</option>
-                            </select>
+                            <label for="f-content">Notas / contenido</label>
+                            <textarea id="f-content" class="panel-textarea" rows="4" required>${item ? escapeHtml(item.content) : ''}</textarea>
                         </div>
                         <div class="panel-form-field">
                             <label for="f-status">Estatus</label>
@@ -119,9 +121,9 @@
                             </select>
                         </div>
                         <div class="panel-form-field">
-                            <label for="f-pdf">Adjunto PDF (opcional)</label>
-                            <input type="file" id="f-pdf" accept="application/pdf">
-                            ${item && item.archivo_pdf_url ? `<small><a href="${escapeHtml(resolveDocUrl(item.archivo_pdf_url))}" target="_blank">Ver adjunto actual</a> — sube uno nuevo para reemplazarlo.</small>` : ''}
+                            <label for="f-pdf">Archivo PDF ${item && item.archivo_pdf_url ? '(reemplazar)' : ''}</label>
+                            <input type="file" id="f-pdf" accept="application/pdf" ${item ? '' : 'required'}>
+                            ${item && item.archivo_pdf_url ? `<small><a href="${escapeHtml(resolveDocUrl(item.archivo_pdf_url))}" target="_blank">Ver PDF actual</a></small>` : ''}
                         </div>
                         <div class="panel-modal-actions">
                             <button type="button" class="btn btn-outline" id="btn-cancel">Cancelar</button>
@@ -134,22 +136,24 @@
 
         document.getElementById('btn-cancel').addEventListener('click', closeModal);
 
-        document.getElementById('ann-form').addEventListener('submit', async (event) => {
+        document.getElementById('inf-form').addEventListener('submit', async (event) => {
             event.preventDefault();
+
             const payload = {
                 title: document.getElementById('f-title').value.trim(),
                 excerpt: document.getElementById('f-excerpt').value.trim(),
                 content: document.getElementById('f-content').value.trim(),
-                category: document.getElementById('f-category').value,
+                category: 'reportes',
                 status: document.getElementById('f-status').value,
                 visibility: document.getElementById('f-visibility').value,
+                published_at: document.getElementById('f-date').value,
                 archivo_pdf_url: item ? item.archivo_pdf_url : null,
             };
 
             const pdfFile = document.getElementById('f-pdf').files[0];
             if (pdfFile) {
                 if (pdfFile.type !== 'application/pdf') {
-                    toast('El adjunto debe ser un PDF.', { type: 'error' });
+                    toast('El archivo debe ser un PDF.', { type: 'error' });
                     return;
                 }
                 if (pdfFile.size > 10 * 1024 * 1024) {
@@ -167,13 +171,18 @@
                 }
             }
 
+            if (!payload.archivo_pdf_url) {
+                toast('Sube el PDF del informe.', { type: 'error' });
+                return;
+            }
+
             try {
                 if (id) {
                     await api.put(`/announcements/${id}`, payload);
-                    toast('Comunicado actualizado.');
+                    toast('Informe actualizado.');
                 } else {
                     await api.post('/announcements', payload);
-                    toast('Comunicado creado.');
+                    toast('Informe creado.');
                 }
                 closeModal();
                 table.reload();
@@ -187,7 +196,7 @@
         modalMount.innerHTML = `
             <div class="panel-modal-overlay">
                 <div class="panel-modal">
-                    <h2>Eliminar comunicado</h2>
+                    <h2>Eliminar informe</h2>
                     <p>Esta acción no se puede deshacer. ¿Confirmas eliminar este registro?</p>
                     <div class="panel-modal-actions">
                         <button type="button" class="btn btn-outline" id="btn-cancel-delete">Cancelar</button>
@@ -200,7 +209,7 @@
         document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
             try {
                 await api.del(`/announcements/${id}`);
-                toast('Comunicado eliminado.');
+                toast('Informe eliminado.');
                 closeModal();
                 table.reload();
             } catch (err) {

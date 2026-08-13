@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manual del Sistema — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        .mn-hero {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            color: #ffffff;
+            margin-bottom: var(--space-md);
+        }
+
+        .mn-hero h1 {
+            margin: 0 0 0.3rem;
+            font-size: 1.5rem;
+        }
+
+        .mn-hero p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .mn-tabs {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: var(--space-md);
+            border-bottom: 1px solid var(--color-border);
+            padding-bottom: var(--space-sm);
+        }
+
+        .mn-tab-btn {
+            padding: 0.6rem 1.1rem;
+            border-radius: 999px;
+            border: 1px solid var(--color-border);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .mn-tab-btn.is-active {
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
+            color: #ffffff;
+        }
+
+        .mn-panel { display: none; }
+        .mn-panel.is-active { display: block; }
+
+        .mn-section {
+            margin-bottom: var(--space-lg);
+        }
+
+        .mn-section h2 {
+            font-size: 1.15rem;
+            border-left: 4px solid var(--color-primary);
+            padding-left: 0.6rem;
+            margin-bottom: var(--space-sm);
+        }
+
+        .mn-section h3 {
+            font-size: 1rem;
+            margin: var(--space-md) 0 0.4rem;
+        }
+
+        /* ARF-Grid: flex + wrap, sin anchos fijos en px */
+        .arf-grid-mn {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+
+        .mn-card {
+            flex: 1 1 16rem;
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            padding: var(--space-md);
+        }
+
+        .mn-card h4 {
+            margin: 0 0 0.4rem;
+            font-size: 0.95rem;
+        }
+
+        .mn-card p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+        }
+
+        .mn-badge-success { background-color: var(--color-success-soft); color: var(--color-success); }
+        .mn-badge-danger { background-color: var(--color-danger-soft); color: var(--color-danger); }
+        .mn-badge-primary { background-color: var(--color-primary-soft); color: var(--color-primary-dark); }
+
+        .mn-table-wrap {
+            overflow-x: auto;
+            margin-bottom: var(--space-md);
+        }
+
+        .mn-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .mn-table th,
+        .mn-table td {
+            padding: 0.5rem 0.7rem;
+            border-bottom: 1px solid var(--color-border);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .mn-table th {
+            background-color: var(--color-bg-alt);
+            font-weight: 700;
+        }
+
+        .mn-flow {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: var(--space-sm) 0;
+        }
+
+        .mn-flow-step {
+            background-color: var(--color-primary-soft);
+            color: var(--color-primary-dark);
+            border-radius: var(--radius);
+            padding: 0.6rem 0.9rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            flex: 1 1 8rem;
+            text-align: center;
+        }
+
+        .mn-flow-arrow {
+            font-size: 1.2rem;
+            color: var(--color-text-muted);
+        }
+
+        .mn-code {
+            position: relative;
+            background-color: #0b1120;
+            color: #e2e8f0;
+            border-radius: var(--radius);
+            padding: 1rem 1rem 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.82rem;
+            overflow-x: auto;
+            margin: 0.6rem 0;
+        }
+
+        .mn-code-copy {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: var(--radius);
+            border: 1px solid #334155;
+            background-color: #1e293b;
+            color: #e2e8f0;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+
+        .mn-code-copy.is-copied {
+            background-color: var(--color-success);
+            border-color: var(--color-success);
+            color: #ffffff;
+        }
+
+        .mn-print-btn {
+            margin-left: auto;
+        }
+
+        /* Sin !important a propósito (Regla de Oro) -- estos selectores ya
+           tienen suficiente especificidad y vienen después en la cascada,
+           así que ganan de forma natural dentro de @media print sin
+           necesitar forzar la prioridad. */
+        @media print {
+            #panel-shell-root .panel-sidebar,
+            #panel-shell-root .panel-topbar,
+            .mn-tabs,
+            .mn-print-btn,
+            .mn-code-copy {
+                display: none;
+            }
+            .mn-panel {
+                display: block;
+            }
+            body {
+                background: #ffffff;
+                color: #000000;
+            }
+            .mn-hero {
+                background: none;
+                color: #000000;
+                border: 1px solid #000;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { getToken, goToLogin, getActiveUser } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const activeUser = getActiveUser();
+    const activeRole = activeUser ? activeUser.role : null;
+    const isColonoRole = activeRole === 'owner' || activeRole === 'colono';
+
+    const content = renderShell('manual', 'Manual del Sistema');
+
+    content.innerHTML = `
+        <div class="mn-hero">
+            <h1>📖 Manual del Sistema — FidePaz V2.0</h1>
+            <p>Centro de documentación técnica y operativa. Acceso restringido al panel (requiere sesión).</p>
+        </div>
+
+        <div class="mn-tabs">
+            ${isColonoRole ? '' : `
+            <button type="button" class="mn-tab-btn" data-tab="tecnica">🛠️ Vista Técnica (Devs)</button>
+            <button type="button" class="mn-tab-btn" data-tab="admin">🗂️ Vista Administrativa</button>
+            `}
+            <button type="button" class="mn-tab-btn" data-tab="colono">🏡 Vista Colono</button>
+            <button type="button" class="btn btn-outline mn-print-btn" id="mn-print-btn">🖨️ Imprimir / Guardar PDF</button>
+        </div>
+
+        <div id="mn-panels"></div>
+    `;
+
+    document.getElementById('mn-print-btn').addEventListener('click', () => window.print());
+
+    // ── Vista Técnica ────────────────────────────────────────────────────
+    const tecnicaHtml = `
+        <div class="mn-panel" data-panel="tecnica">
+            <div class="mn-section">
+                <h2>Arquitectura</h2>
+                <div class="arf-grid-mn">
+                    <div class="mn-card"><h4>Web pública</h4><p>HTML/CSS/JS estático, sin build. Raíz del repo.</p></div>
+                    <div class="mn-card"><h4>Panel</h4><p>HTML/JS nativo (ES modules), sin framework. <code>panel/*.html</code>.</p></div>
+                    <div class="mn-card"><h4>API</h4><p><strong>PHP 8.2+</strong> (backend real), sin Composer. Front controller único: <code>api/v2/index.php</code>. El binario Go 1.26 original está archivado, no se expone en este hosting.</p></div>
+                    <div class="mn-card"><h4>Base de datos</h4><p>MySQL/MariaDB, <code>mercagee_v2_FidePaz_DB</code>. 100% Prepared Statements.</p></div>
+                </div>
+
+                <h3>Flujo de una petición</h3>
+                <div class="mn-flow">
+                    <div class="mn-flow-step">fetch() con JWT</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">index.php (router)</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">Auth::requireRole()</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">Prepared Statement</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">MySQL</div>
+                </div>
+            </div>
+
+            <div class="mn-section">
+                <h2>Reglas de Oro</h2>
+                <div class="arf-grid-mn">
+                    <div class="mn-card"><h4>Estilos</h4><p><code>assets/css/main.css</code> define la paleta; <code>panel/panel.css</code> la reutiliza. Cero <code>style=""</code> inline, cero <code>!important</code>.</p></div>
+                    <div class="mn-card"><h4>ARF-Grid</h4><p><code>display:flex</code> + <code>flex-wrap:wrap</code>, sin anchos fijos en px.</p></div>
+                    <div class="mn-card"><h4>Nomenclatura</h4><p><code>snake_case</code> en BD/backend, <code>camelCase</code> en JS/frontend.</p></div>
+                    <div class="mn-card"><h4>Zero-Trust</h4><p>Prepared Statements 100%, BCrypt, JWT con verificación de rol en cada endpoint — nunca solo del lado del cliente.</p></div>
+                </div>
+            </div>
+
+            <div class="mn-section">
+                <h2>Diccionario de datos</h2>
+                <div class="mn-table-wrap">
+                    <table class="mn-table">
+                        <thead><tr><th>Tabla</th><th>Filas aprox.</th><th>Propósito</th><th>Notas clave</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>street</code></td><td>25</td><td>Catálogo de calles</td><td>—</td></tr>
+                            <tr><td><code>quota</code></td><td>13</td><td>Catálogo de tarifas</td><td>Fuente del monto al generar cuotas</td></tr>
+                            <tr><td><code>user</code></td><td>204+</td><td>Colonos/propietarios</td><td><code>role</code> ∈ owner|admin|super_admin. <code>password</code> nunca se expone.</td></tr>
+                            <tr><td><code>property</code></td><td>196–199</td><td>Casas/unidades</td><td>Dueño se infiere del <code>user_quotas</code> más reciente</td></tr>
+                            <tr><td><code>user_quotas</code></td><td>8,500+</td><td>Tabla transaccional</td><td><span class="panel-badge mn-badge-danger">status=1 pendiente</span> <span class="panel-badge mn-badge-success">status=2 pagado</span>. <code>official_receipt_url</code>/<code>captured_at</code> nuevas 2026-08-13.</td></tr>
+                            <tr><td><code>announcements</code></td><td>61+</td><td>Comunicados/informes</td><td><code>visibility</code> public|private controla exposición en la Landing</td></tr>
+                            <tr><td><code>messages</code> / <code>message_replies</code></td><td>0+</td><td>Mensajería interna</td><td>Nuevas 2026-08-12. <code>status</code> nuevo|abierto|respondido|cerrado</td></tr>
+                            <tr><td><code>audit_logs</code></td><td>—</td><td>Bitácora create/update/delete</td><td><code>details_json</code> = {before,after} completo</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mn-section">
+                <h2>Catálogo de endpoints</h2>
+                <div class="mn-table-wrap">
+                    <table class="mn-table">
+                        <thead><tr><th>Método</th><th>Ruta</th><th>Rol</th><th>Notas</th></tr></thead>
+                        <tbody>
+                            <tr><td>POST</td><td><code>/auth/login</code></td><td>pública</td><td>{email,password} → token</td></tr>
+                            <tr><td>POST</td><td><code>/quota/generate-period</code></td><td>admin/super_admin</td><td>Idempotente, también corre por cron</td></tr>
+                            <tr><td>GET/PUT/POST</td><td><code>/payment*</code></td><td><span class="panel-badge mn-badge-danger">super_admin</span></td><td>Módulo Pagos clásico</td></tr>
+                            <tr><td>GET/POST</td><td><code>/caja/*</code></td><td><span class="panel-badge mn-badge-danger">super_admin</span></td><td>Búsqueda, matriz, registrar pago + recibo</td></tr>
+                            <tr><td>GET</td><td><code>/avisos</code>, <code>/avisos/years</code></td><td>JWT (cualquier rol)</td><td>Feed del panel, público y privado</td></tr>
+                            <tr><td>CRUD</td><td><code>/announcements*</code></td><td>admin/super_admin</td><td>Comunicados/Informes</td></tr>
+                            <tr><td>GET/POST</td><td><code>/messages*</code></td><td>JWT (cualquier rol)</td><td>owner ve lo suyo; admin/super_admin ve todo</td></tr>
+                            <tr><td>POST</td><td><code>/messages/broadcast</code></td><td>admin/super_admin</td><td>Un hilo por colono activo</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="color:var(--color-text-muted);font-size:0.85rem;">Catálogo completo y siempre vigente: <code>knowledge/03_CONTRATOS_API_Y_RUTAS.md</code>.</p>
+            </div>
+
+            <div class="mn-section">
+                <h2>Ejemplos de código</h2>
+                <h3>Login (obtener JWT)</h3>
+                <div class="mn-code" data-code>
+                    <button type="button" class="mn-code-copy">Copiar</button>
+                    <pre>curl -X POST https://v2.fidepaz.org/api/v2/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"colono@ejemplo.com","password":"..."}'</pre>
+                </div>
+                <h3>Llamada autenticada</h3>
+                <div class="mn-code" data-code>
+                    <button type="button" class="mn-code-copy">Copiar</button>
+                    <pre>fetch('/api/v2/payment/owners', {
+  headers: { Authorization: 'Bearer ' + token }
+}).then(r =&gt; r.json());</pre>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // ── Vista Administrativa ─────────────────────────────────────────────
+    const adminHtml = `
+        <div class="mn-panel" data-panel="admin">
+            <div class="mn-section">
+                <h2>Proceso de cobro (Módulo de Caja)</h2>
+                <div class="mn-flow">
+                    <div class="mn-flow-step">1. Buscar colono</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">2. Elegir meses pendientes</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">3. Comprobante único o individual</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">4. Registrar pago</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">5. Recibo oficial con folio</div>
+                </div>
+                <p style="color:var(--color-text-muted);font-size:0.85rem;">Exclusivo <strong>super_admin</strong> — <code>panel/caja.html</code>. El recibo oficial es una página HTML imprimible (no un PDF binario generado en servidor, este stack no usa librerías de PDF) — Ctrl+P → "Guardar como PDF" da el mismo resultado final.</p>
+            </div>
+
+            <div class="mn-section">
+                <h2>Generación mensual de cuotas</h2>
+                <div class="arf-grid-mn">
+                    <div class="mn-card"><h4>🤖 Automática</h4><p>Cron de cPanel, día 1 de cada mes. <code>api/v2/cli/generate_monthly_quotas.php</code>.</p></div>
+                    <div class="mn-card"><h4>🖱️ Manual</h4><p>Botón "Generar cuotas del mes" en <code>panel/cuotas.html</code> — exige vista previa antes de habilitar el real.</p></div>
+                </div>
+            </div>
+
+            <div class="mn-section">
+                <h2>Mensajería masiva</h2>
+                <div class="mn-flow">
+                    <div class="mn-flow-step">Admin escribe asunto + mensaje</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">Se crea 1 hilo por colono activo</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">Cada colono puede responder su propio hilo</div>
+                </div>
+                <p style="color:var(--color-text-muted);font-size:0.85rem;"><code>panel/mensajes.html</code> — botón "📢 Mensaje masivo" (admin/super_admin).</p>
+            </div>
+
+            <div class="mn-section">
+                <h2>Comunicados: público vs. privado</h2>
+                <div class="arf-grid-mn">
+                    <div class="mn-card"><h4><span class="panel-badge mn-badge-success">🌐 Público</span></h4><p>Se muestra también en la Landing Page (<code>index.html</code>), sin login.</p></div>
+                    <div class="mn-card"><h4><span class="panel-badge mn-badge-primary">🔒 Privado</span></h4><p>Solo visible dentro del panel autenticado (default al crear uno nuevo).</p></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // ── Vista Colono ──────────────────────────────────────────────────────
+    const colonoHtml = `
+        <div class="mn-panel" data-panel="colono">
+            <div class="mn-section">
+                <h2>Tu cuenta</h2>
+                <div class="arf-grid-mn">
+                    <div class="mn-card"><h4>🏡 Mi cuenta</h4><p>Total pagado/pendiente, historial de cuotas filtrable por año, aviso de privacidad.</p></div>
+                    <div class="mn-card"><h4>📄 Estado de Cuenta</h4><p>Vista imprimible agrupada por año, con <span class="panel-badge mn-badge-success">verde=pagado</span> / <span class="panel-badge mn-badge-danger">rojo=pendiente</span>.</p></div>
+                    <div class="mn-card"><h4>📣 Comunicados</h4><p>Avisos e informes financieros, filtrables por año y categoría.</p></div>
+                    <div class="mn-card"><h4>💬 Mensajes</h4><p>Escribe directamente a la administración y sigue la conversación en tu propio hilo.</p></div>
+                </div>
+            </div>
+
+            <div class="mn-section">
+                <h2>Descargar tus recibos</h2>
+                <div class="mn-flow">
+                    <div class="mn-flow-step">Administración registra tu pago</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">Se genera tu recibo oficial con folio</div>
+                    <span class="mn-flow-arrow">→</span>
+                    <div class="mn-flow-step">Lo ves y descargas desde tu historial de cuotas</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('mn-panels').innerHTML = isColonoRole ? colonoHtml : (tecnicaHtml + adminHtml + colonoHtml);
+
+    // ── Tabs ──────────────────────────────────────────────────────────────
+    const tabButtons = document.querySelectorAll('.mn-tab-btn');
+    const panels = document.querySelectorAll('.mn-panel');
+
+    function activateTab(tabId) {
+        tabButtons.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === tabId));
+        panels.forEach((panel) => panel.classList.toggle('is-active', panel.dataset.panel === tabId));
+    }
+    tabButtons.forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+    activateTab(isColonoRole ? 'colono' : 'tecnica');
+
+    // ── Copiar bloques de código ──────────────────────────────────────────
+    document.querySelectorAll('.mn-code-copy').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const pre = btn.closest('[data-code]').querySelector('pre');
+            try {
+                await navigator.clipboard.writeText(pre.textContent);
+                btn.textContent = '✓ Copiado';
+                btn.classList.add('is-copied');
+                setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('is-copied'); }, 1500);
+            } catch (err) {
+                btn.textContent = 'No se pudo copiar';
+            }
+        });
+    });
+</script>
+</body>
+</html>

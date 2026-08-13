@@ -33,6 +33,14 @@
             color: var(--color-text-muted);
             font-size: 0.82rem;
         }
+
+        .mc-privacy-ok {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--color-text-muted);
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
@@ -40,7 +48,7 @@
 <div id="panel-shell-root"></div>
 
 <script type="module">
-    import { api, getToken, goToLogin, getActiveUser, panelRoot } from './js/api.js';
+    import { api, getToken, goToLogin, getActiveUser, panelRoot, patchActiveUser, apiUrl, formatDateColono } from './js/api.js';
     import { renderShell } from './js/shell.js';
     import { escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
@@ -58,31 +66,53 @@
         </div>
         <div class="panel-toolbar-inline">
             <a class="btn" target="_blank" href="${reportHref}">Ver estado de cuenta elegante</a>
-            <button type="button" class="btn btn-outline" id="btn-privacy">Aceptar aviso de privacidad</button>
+            <span id="mc-privacy-slot"></span>
         </div>
+        <div class="panel-chip-row" id="mc-year-chips"></div>
         <div class="panel-table-wrap">
             <table class="panel-table">
-                <thead><tr><th>Propiedad</th><th>Vencimiento</th><th>Monto</th><th>Estatus</th></tr></thead>
-                <tbody id="mc-tbody"><tr><td colspan="4" class="panel-empty-state">Cargando…</td></tr></tbody>
+                <thead><tr><th>Propiedad</th><th>Vencimiento</th><th>Monto</th><th>Estatus</th><th>Comprobante / Recibo</th></tr></thead>
+                <tbody id="mc-tbody"><tr><td colspan="5" class="panel-empty-state">Cargando…</td></tr></tbody>
             </table>
         </div>
     `;
 
-    document.getElementById('btn-privacy').addEventListener('click', async () => {
-        try {
-            await api.put('/user/update-privacy', {});
-            toast('Aviso de privacidad aceptado.');
-        } catch (err) {
-            toast(err.message, { type: 'error' });
+    // Aviso de privacidad (corregido 2026-08-12): antes el botón quedaba
+    // visible y clicable siempre, incluso ya aceptado -- solo mostraba un
+    // toast efímero, sin reflejar el estado real guardado en `user.privacy`.
+    // Ahora el login manda `user.privacy` real (ver handle_auth_login en
+    // api/v2/routes/auth.php) y se renderiza uno u otro según ese valor;
+    // tras aceptar, se actualiza el usuario cacheado (patchActiveUser) para
+    // que el cambio se vea al instante, sin relogin.
+    const privacySlot = document.getElementById('mc-privacy-slot');
+
+    function renderPrivacySlot(accepted) {
+        if (accepted) {
+            privacySlot.innerHTML = '<span class="mc-privacy-ok">✓ Aviso de privacidad aceptado</span>';
+            return;
         }
-    });
+        privacySlot.innerHTML = '<button type="button" class="btn btn-outline" id="btn-privacy">Aceptar aviso de privacidad</button>';
+        document.getElementById('btn-privacy').addEventListener('click', async () => {
+            try {
+                await api.put('/user/update-privacy', {});
+                patchActiveUser({ privacy: true });
+                renderPrivacySlot(true);
+                toast('Aviso de privacidad aceptado.');
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    renderPrivacySlot(Boolean(user && user.privacy));
 
     const STATUS_LABEL = { 1: 'Pendiente', 2: 'Pagado' };
+    const STATUS_BADGE_CLASS = { 1: 'panel-badge-pending', 2: 'panel-badge-paid' };
+    let allQuotas = [];
+    let selectedYear = '';
 
-    api.get('/payment/owners').then((data) => {
-        const items = data.items || [];
+    function renderQuotasTable(items) {
         const tbody = document.getElementById('mc-tbody');
-
         let totalPaid = 0;
         let totalPending = 0;
         items.forEach((q) => {
@@ -93,20 +123,67 @@
         document.getElementById('mc-pending').textContent = `$${totalPending.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
         if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="panel-empty-state">No hay cuotas registradas todavía.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="panel-empty-state">No hay cuotas registradas para ese año.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = items.map((q) => `
+        tbody.innerHTML = items.map((q) => {
+            const docLinks = [];
+            if (q.receipt && q.receiptAvailable) { docLinks.push(`<a class="btn-link" href="${escapeHtml(apiUrl(`/payment/get-file/${q.id}?token=${encodeURIComponent(q.receiptViewToken)}`))}" target="_blank" rel="noopener noreferrer">📎 Comprobante</a>`); }
+            if (q.receipt && !q.receiptAvailable) { docLinks.push(`<span class="panel-badge" title="El comprobante original pertenece a la infraestructura V1 y no se migró; el pago sí quedó registrado.">🧾 Pago Registrado — Comprobante Histórico en Archivo</span>`); }
+            if (Number(q.status) === 2) { docLinks.push(`<a class="btn-link" href="${escapeHtml(apiUrl(`/payment/receipt/${q.id}?token=${encodeURIComponent(q.officialReceiptViewToken)}`))}" target="_blank" rel="noopener noreferrer">🧾 Recibo oficial</a>`); }
+            return `
             <tr>
                 <td>${escapeHtml(q.property.street.name)} #${Number(q.property.numOficial)}</td>
-                <td>${(q.dueDate || '').slice(0, 10)}</td>
+                <td>${formatDateColono(q.dueDate)}</td>
                 <td>$${Number(q.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                <td><span class="panel-badge">${STATUS_LABEL[q.status] || q.status}</span></td>
+                <td><span class="panel-badge ${STATUS_BADGE_CLASS[q.status] || ''}">${STATUS_LABEL[q.status] || q.status}</span></td>
+                <td>${docLinks.length ? docLinks.join(' · ') : '—'}</td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
+    }
+
+    // Solución de raíz definitiva -- un solo clic (2026-08-14): /payment/owners
+    // ahora trae, por cada cuota, un token JWT de vida corta (15 min) ya
+    // escopeado a esa cuota exacta (ver quota_view_token_issue() en
+    // routes/quotas.php) -- el <a href> de arriba ya sale armado con ese
+    // token, así que abre con UN solo clic normal, sin fetch ni
+    // window.open() de por medio: imposible de bloquear por ningún
+    // navegador.
+
+    function renderYearChips() {
+        const years = Array.from(new Set(allQuotas
+            .map((q) => (q.dueDate || '').slice(0, 4))
+            .filter(Boolean)
+        )).sort((a, b) => b.localeCompare(a));
+        const options = [{ value: '', label: 'Todos' }, ...years.map((y) => ({ value: y, label: y }))];
+
+        document.getElementById('mc-year-chips').innerHTML = options.map((opt) =>
+            `<button type="button" class="panel-chip${opt.value === selectedYear ? ' is-active' : ''}" data-value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</button>`
+        ).join('');
+        document.querySelectorAll('#mc-year-chips .panel-chip').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                selectedYear = btn.dataset.value;
+                renderYearChips();
+                applyYearFilter();
+            });
+        });
+    }
+
+    function applyYearFilter() {
+        const filtered = selectedYear
+            ? allQuotas.filter((q) => (q.dueDate || '').slice(0, 4) === selectedYear)
+            : allQuotas;
+        renderQuotasTable(filtered);
+    }
+
+    api.get('/payment/owners').then((data) => {
+        allQuotas = data.items || [];
+        renderYearChips();
+        applyYearFilter();
     }).catch((err) => {
-        document.getElementById('mc-tbody').innerHTML = `<tr><td colspan="4" class="panel-empty-state">${escapeHtml(err.message)}</td></tr>`;
+        document.getElementById('mc-tbody').innerHTML = `<tr><td colspan="5" class="panel-empty-state">${escapeHtml(err.message)}</td></tr>`;
     });
 </script>
 </body>

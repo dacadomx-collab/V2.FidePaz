@@ -1,9 +1,11 @@
 // assets/js/main.js — FidePaz V2.0 - Web Pública
 //
 // Nota: la plantilla original hacía fetch('api/status_check.php'), un endpoint
-// PHP que pertenecía al scaffold genérico ya eliminado. Este sitio público es
-// estático y no depende de ningún backend propio; la única API real del
-// proyecto es Go en /api/v2/ (consumida por /administrator, no por esta web).
+// PHP que pertenecía al scaffold genérico ya eliminado. La mayor parte de este
+// sitio sigue siendo estático, pero desde 2026-08-11 la sección "Noticias y
+// avisos" también consume GET /api/v2/comunicados (solo lectura, sin auth)
+// para mostrar los comunicados que un admin marcó como visibility="public"
+// desde panel/comunicados.html -- ver initPublicAvisos() más abajo.
 
 document.addEventListener('DOMContentLoaded', () => {
     // Año dinámico en el footer.
@@ -24,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Cada módulo se inicializa de forma aislada: si uno falla, no debe
     // impedir que los demás (menú, slider, modal, etc.) sigan funcionando.
-    [initContactForm, initThemeToggle, initScrollTop, initHeroSlider, initNewsModal, initSmoothNav, initHeaderShadow, initRevealOnScroll]
+    [initContactForm, initThemeToggle, initScrollTop, initHeroSlider, initNewsModal, initPublicAvisos, initSmoothNav, initHeaderShadow, initRevealOnScroll]
         .forEach((init) => {
             try {
                 init();
@@ -169,8 +171,7 @@ function initNewsModal() {
     const titleEl = document.getElementById('news-modal-title');
     const dateEl = document.getElementById('news-modal-date');
     const bodyEl = document.getElementById('news-modal-body');
-    const cards = document.querySelectorAll('[data-news]');
-    if (!modal || !cards.length) {
+    if (!modal) {
         return;
     }
 
@@ -190,9 +191,18 @@ function initNewsModal() {
         modal.hidden = true;
     }
 
-    cards.forEach((card) => {
-        card.addEventListener('click', () => open(card.getAttribute('data-news')));
-    });
+    // Delegado en #noticias (en vez de un listener por tarjeta): las
+    // tarjetas dinámicas de initPublicAvisos() se insertan DESPUÉS de que
+    // este init corre (esperan un fetch async), así que un listener directo
+    // por tarjeta nunca las habría alcanzado. NEWS_CONTENT es const pero
+    // mutable -- initPublicAvisos le agrega sus propias entradas por id.
+    const noticiasSection = document.getElementById('noticias');
+    if (noticiasSection) {
+        noticiasSection.addEventListener('click', (event) => {
+            const card = event.target.closest('[data-news]');
+            if (card) { open(card.getAttribute('data-news')); }
+        });
+    }
 
     closeBtn.addEventListener('click', close);
     modal.addEventListener('click', (event) => {
@@ -204,6 +214,74 @@ function initNewsModal() {
         if (event.key === 'Escape' && !modal.hidden) {
             close();
         }
+    });
+}
+
+// Avisos públicos reales (2026-08-11): trae los comunicados que un
+// admin marcó explícitamente visibility="public" + status="published"
+// desde panel/comunicados.html (GET /api/v2/comunicados, solo lectura,
+// sin auth -- ver handle_comunicados_list en api/v2/routes/announcements.php).
+// Se insertan ANTES de las tarjetas históricas estáticas (más recientes
+// primero) y reutilizan el mismo modal -- si el fetch falla o no hay avisos
+// públicos todavía, la sección simplemente no cambia (contenido histórico
+// intacto), nunca se muestra un error al visitante.
+async function initPublicAvisos() {
+    const grid = document.querySelector('#noticias .arf-grid');
+    if (!grid) {
+        return;
+    }
+
+    let items;
+    try {
+        const response = await fetch('api/v2/comunicados?per_page=6', { headers: { Accept: 'application/json' } });
+        if (!response.ok) { return; }
+        const data = await response.json();
+        items = Array.isArray(data.items) ? data.items : [];
+    } catch (err) {
+        return; // sin conexión / API caída -- se queda el contenido histórico, sin ruido en pantalla
+    }
+
+    if (!items.length) {
+        return;
+    }
+
+    const formatter = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // title/excerpt son texto plano (a diferencia de content, documentado en
+    // 02_CODEX_Y_SCHEMA_MAESTRO.md como "HTML permitido", igual que WordPress
+    // content.rendered) -- van siempre escapados antes de innerHTML. Sin esto,
+    // un título con "<script>" guardado desde panel/comunicados.html se
+    // ejecutaría en el navegador de cualquier visitante de la Landing Page
+    // pública, no solo dentro del panel admin autenticado.
+    function escapeHtml(str) {
+        return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    items.forEach((item) => {
+        const key = 'aviso-' + item.id;
+        const dateLabel = item.publishedAt ? formatter.format(new Date(item.publishedAt)) : '';
+
+        let html = '';
+        if (item.imageUrl) {
+            html += `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" style="max-width:100%;border-radius:var(--radius, 8px);">`;
+        }
+        html += `<div>${item.content || ''}</div>`;
+        if (item.archivoUrl) {
+            html += `<p><a class="btn" href="${escapeHtml(item.archivoUrl)}" target="_blank" rel="noopener">Descargar PDF</a></p>`;
+        }
+
+        NEWS_CONTENT[key] = { title: item.title, date: dateLabel, html };
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'card news-card arf-col-3';
+        card.setAttribute('data-news', key);
+        card.innerHTML = `
+            <p class="news-date">${escapeHtml(dateLabel)}</p>
+            <h3>${escapeHtml(item.title)}</h3>
+            <p class="news-status">${escapeHtml(item.excerpt) || 'Ver aviso'}</p>
+        `;
+        grid.insertBefore(card, grid.firstChild);
     });
 }
 

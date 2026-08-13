@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Caja — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        .caja-search-wrap {
+            position: relative;
+            max-width: 32rem;
+            margin-bottom: var(--space-md);
+        }
+
+        .caja-search-wrap input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.95rem;
+        }
+
+        .caja-search-results {
+            position: absolute;
+            top: calc(100% + 0.3rem);
+            left: 0;
+            right: 0;
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+            max-height: 20rem;
+            overflow-y: auto;
+            z-index: 20;
+        }
+
+        .caja-search-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 0.6rem 1rem;
+            border: none;
+            border-bottom: 1px solid var(--color-border);
+            background: none;
+            color: var(--color-text);
+            cursor: pointer;
+        }
+
+        .caja-search-item:hover {
+            background-color: var(--color-bg-alt);
+        }
+
+        .caja-search-item .name {
+            font-weight: 700;
+        }
+
+        .caja-search-item .meta {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .caja-selected-owner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            background-color: var(--color-bg-alt);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            padding: 0.75rem var(--space-md);
+            margin-bottom: var(--space-md);
+        }
+
+        .caja-year-group {
+            margin-bottom: var(--space-sm);
+        }
+
+        .caja-year-header {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .caja-year-header strong {
+            font-size: 0.95rem;
+        }
+
+        .caja-month-row {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            margin-bottom: 0.35rem;
+            background-color: var(--color-bg);
+        }
+
+        .caja-month-row .label {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+
+        .caja-month-row .amount {
+            font-weight: 700;
+        }
+
+        .caja-summary-bar {
+            position: sticky;
+            bottom: 0;
+            background-color: var(--color-bg);
+            border-top: 1px solid var(--color-border);
+            padding: var(--space-sm) var(--space-md);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+
+        .caja-form-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+
+        .caja-form-grid .panel-form-field {
+            flex: 1;
+            min-width: 14rem;
+        }
+
+        .caja-individual-files {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: var(--space-sm);
+        }
+
+        .caja-individual-files label {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin, getActiveUser, panelRoot, resolveDocUrl } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { escapeHtml } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    // RBAC (2026-08-13): Caja es exclusivo de super_admin. El control real
+    // está en el backend (Auth::requireRole(['super_admin']) en cada
+    // endpoint /caja/*, ver api/v2/routes/caja.php) -- esto solo evita que
+    // un admin normal llegue a una pantalla rota por URL directa.
+    const currentUser = getActiveUser();
+    if (!currentUser || currentUser.role !== 'super_admin') {
+        window.location.href = panelRoot() + (currentUser && currentUser.role === 'owner' ? 'mi-cuenta.html' : 'index.html');
+    }
+
+    const content = renderShell('caja', 'Caja — Registrar pago');
+
+    content.innerHTML = `
+        <div class="caja-search-wrap">
+            <input type="search" id="caja-search-input" placeholder="Buscar por nombre, correo, código, calle o número oficial…" autocomplete="off">
+            <div class="caja-search-results" id="caja-search-results" hidden></div>
+        </div>
+        <div id="caja-owner-panel"></div>
+        <div id="caja-modal-mount"></div>
+    `;
+
+    const searchInput = document.getElementById('caja-search-input');
+    const resultsEl = document.getElementById('caja-search-results');
+    const ownerPanelEl = document.getElementById('caja-owner-panel');
+    const cajaModalMount = document.getElementById('caja-modal-mount');
+
+    // Reinicia TODO el estado de la pantalla (2026-08-14, pedido explícito
+    // "Registrar otro pago" debe limpiar el formulario por completo) --
+    // vuelve exactamente al estado inicial: sin colono elegido, sin
+    // búsqueda, sin selección de meses.
+    function resetCajaScreen() {
+        currentOwner = null;
+        pendingItems = [];
+        selected.clear();
+        searchInput.value = '';
+        resultsEl.hidden = true;
+        renderOwnerPanel();
+        searchInput.focus();
+    }
+    let searchDebounce = null;
+    let quotaCatalog = [];
+
+    api.get('/catalog/quotas').then((data) => { quotaCatalog = data.items || data || []; }).catch(() => {});
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        const q = searchInput.value.trim();
+        if (q.length < 2) {
+            resultsEl.hidden = true;
+            return;
+        }
+        searchDebounce = setTimeout(async () => {
+            try {
+                const data = await api.get('/caja/search', { q });
+                renderSearchResults(data.items || []);
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+            }
+        }, 300);
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('.caja-search-wrap')) { resultsEl.hidden = true; }
+    });
+
+    function renderSearchResults(items) {
+        if (!items.length) {
+            resultsEl.innerHTML = '<div class="caja-search-item">Sin resultados.</div>';
+            resultsEl.hidden = false;
+            return;
+        }
+        resultsEl.innerHTML = items.map((owner) => {
+            const props = owner.properties.map((p) => `${escapeHtml(p.streetName || '')} #${p.numOficial}`).join(', ');
+            return `
+                <button type="button" class="caja-search-item" data-id="${owner.id}">
+                    <div class="name">${escapeHtml(owner.name)} ${owner.code ? `(${escapeHtml(owner.code)})` : ''}</div>
+                    <div class="meta">${escapeHtml(owner.email)}${props ? ' · ' + props : ''}</div>
+                </button>
+            `;
+        }).join('');
+        resultsEl.hidden = false;
+        resultsEl.querySelectorAll('.caja-search-item[data-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                resultsEl.hidden = true;
+                searchInput.value = '';
+                loadOwnerPending(Number(btn.dataset.id));
+            });
+        });
+    }
+
+    const selected = new Set();
+    let pendingItems = [];
+    let currentOwner = null;
+
+    async function loadOwnerPending(userId) {
+        try {
+            const data = await api.get(`/caja/pending/${userId}`);
+            currentOwner = data.user;
+            pendingItems = data.items || [];
+            selected.clear();
+            renderOwnerPanel();
+        } catch (err) {
+            toast(err.message, { type: 'error' });
+        }
+    }
+
+    function monthLabel(iso) {
+        const d = new Date(iso);
+        return d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    }
+
+    function renderOwnerPanel() {
+        if (!currentOwner) { ownerPanelEl.innerHTML = ''; return; }
+
+        if (!pendingItems.length) {
+            ownerPanelEl.innerHTML = `
+                <div class="caja-selected-owner">
+                    <div><strong>${escapeHtml(currentOwner.name)}</strong> — ${escapeHtml(currentOwner.email)}</div>
+                    <button type="button" class="btn btn-outline" id="caja-clear-owner">Cambiar colono</button>
+                </div>
+                <p class="panel-empty-state">Este colono no tiene meses pendientes.</p>
+            `;
+            document.getElementById('caja-clear-owner').addEventListener('click', () => { currentOwner = null; renderOwnerPanel(); });
+            return;
+        }
+
+        const byYear = {};
+        pendingItems.forEach((item) => {
+            (byYear[item.year] = byYear[item.year] || []).push(item);
+        });
+        const years = Object.keys(byYear).sort((a, b) => b - a);
+
+        const yearGroupsHtml = years.map((year) => `
+            <div class="caja-year-group">
+                <div class="caja-year-header">
+                    <strong>${year}</strong>
+                    <button type="button" class="btn btn-outline" data-select-year="${year}" style="padding:0.25rem 0.7rem;font-size:0.78rem;">Seleccionar año completo</button>
+                </div>
+                ${byYear[year].map((item) => `
+                    <label class="caja-month-row">
+                        <input type="checkbox" data-quota-id="${item.id}" data-amount="${item.amount}">
+                        <span class="label">${escapeHtml(monthLabel(item.dueDate))} — ${escapeHtml(item.property.streetName || '')} #${item.property.numOficial}</span>
+                        <span class="amount">$${item.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                    </label>
+                `).join('')}
+            </div>
+        `).join('');
+
+        ownerPanelEl.innerHTML = `
+            <div class="caja-selected-owner">
+                <div><strong>${escapeHtml(currentOwner.name)}</strong> ${currentOwner.code ? `(${escapeHtml(currentOwner.code)})` : ''} — ${escapeHtml(currentOwner.email)}</div>
+                <button type="button" class="btn btn-outline" id="caja-clear-owner">Cambiar colono</button>
+            </div>
+            ${yearGroupsHtml}
+            <div class="caja-summary-bar">
+                <span id="caja-selected-summary">0 meses seleccionados · $0.00</span>
+            </div>
+            <div id="caja-payment-form-mount"></div>
+        `;
+
+        document.getElementById('caja-clear-owner').addEventListener('click', () => { currentOwner = null; renderOwnerPanel(); });
+
+        ownerPanelEl.querySelectorAll('[data-select-year]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const year = btn.dataset.selectYear;
+                byYear[year].forEach((item) => selected.add(item.id));
+                syncCheckboxes();
+            });
+        });
+
+        ownerPanelEl.querySelectorAll('input[type="checkbox"][data-quota-id]').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const id = Number(cb.dataset.quotaId);
+                if (cb.checked) { selected.add(id); } else { selected.delete(id); }
+                updateSummary();
+            });
+        });
+
+        updateSummary();
+        renderPaymentForm();
+    }
+
+    function syncCheckboxes() {
+        ownerPanelEl.querySelectorAll('input[type="checkbox"][data-quota-id]').forEach((cb) => {
+            cb.checked = selected.has(Number(cb.dataset.quotaId));
+        });
+        updateSummary();
+    }
+
+    function updateSummary() {
+        const chosen = pendingItems.filter((item) => selected.has(item.id));
+        const total = chosen.reduce((sum, item) => sum + item.amount, 0);
+        const summaryEl = document.getElementById('caja-selected-summary');
+        if (summaryEl) {
+            summaryEl.textContent = `${chosen.length} mes(es) seleccionado(s) · $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+        }
+        const submitBtn = document.getElementById('caja-submit-btn');
+        if (submitBtn) { submitBtn.disabled = chosen.length === 0; }
+    }
+
+    function renderPaymentForm() {
+        const mount = document.getElementById('caja-payment-form-mount');
+        if (!mount) { return; }
+
+        const catalogOptions = quotaCatalog.map((q) => `<option value="${q.id}">${escapeHtml(q.name)} — $${Number(q.cost).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</option>`).join('');
+        const today = new Date().toISOString().slice(0, 10);
+
+        mount.innerHTML = `
+            <form id="caja-payment-form">
+                <div class="caja-form-grid">
+                    <div class="panel-form-field">
+                        <label for="caja-pay-date">Fecha de pago</label>
+                        <input type="date" id="caja-pay-date" value="${today}" required>
+                    </div>
+                    <div class="panel-form-field">
+                        <label for="caja-override-quota">Tarifa (opcional — recalcula el total)</label>
+                        <select id="caja-override-quota">
+                            <option value="">Usar el monto ya asignado a cada mes</option>
+                            ${catalogOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="panel-filter-group">
+                    <p class="panel-filter-label">Comprobante</p>
+                    <div class="panel-chip-row" id="caja-receipt-mode-chips"></div>
+                </div>
+                <div id="caja-receipt-files-mount"></div>
+                <div class="panel-modal-actions panel-modal-actions-start">
+                    <button type="submit" class="btn" id="caja-submit-btn" disabled>Registrar pago</button>
+                </div>
+            </form>
+        `;
+
+        const receiptModeChipsEl = document.getElementById('caja-receipt-mode-chips');
+        let receiptMode = 'single';
+        function renderReceiptModeChips() {
+            receiptModeChipsEl.innerHTML = `
+                <button type="button" class="panel-chip${receiptMode === 'single' ? ' is-active' : ''}" data-mode="single">Único para todos los meses</button>
+                <button type="button" class="panel-chip${receiptMode === 'individual' ? ' is-active' : ''}" data-mode="individual">Individual por mes</button>
+            `;
+            receiptModeChipsEl.querySelectorAll('.panel-chip').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    receiptMode = btn.dataset.mode;
+                    renderReceiptModeChips();
+                    renderReceiptFiles();
+                });
+            });
+        }
+        renderReceiptModeChips();
+
+        function renderReceiptFiles() {
+            const filesMount = document.getElementById('caja-receipt-files-mount');
+            const chosen = pendingItems.filter((item) => selected.has(item.id));
+            if (receiptMode === 'single') {
+                filesMount.innerHTML = `
+                    <div class="panel-form-field">
+                        <label for="caja-file-single">Archivo del comprobante (PDF, PNG o JPG, máx. 5 MB)</label>
+                        <input type="file" id="caja-file-single" accept="application/pdf,image/png,image/jpeg" required>
+                    </div>
+                `;
+            } else {
+                filesMount.innerHTML = `
+                    <div class="caja-individual-files">
+                        ${chosen.map((item) => `
+                            <div class="panel-form-field">
+                                <label for="caja-file-${item.id}">${escapeHtml(monthLabel(item.dueDate))} — ${escapeHtml(item.property.streetName || '')} #${item.property.numOficial}</label>
+                                <input type="file" id="caja-file-${item.id}" data-quota-id="${item.id}" accept="application/pdf,image/png,image/jpeg" required>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        }
+        renderReceiptFiles();
+
+        // Re-render el bloque de archivos si cambia la selección de meses
+        // (el modo individual necesita un <input file> por mes elegido).
+        ownerPanelEl.querySelectorAll('input[type="checkbox"][data-quota-id]').forEach((cb) => {
+            cb.addEventListener('change', () => { if (receiptMode === 'individual') { renderReceiptFiles(); } });
+        });
+
+        document.getElementById('caja-payment-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const chosen = pendingItems.filter((item) => selected.has(item.id));
+            if (!chosen.length) { return; }
+
+            const formData = new FormData();
+            formData.append('quotaIds', JSON.stringify(chosen.map((item) => item.id)));
+            formData.append('payDate', document.getElementById('caja-pay-date').value);
+            formData.append('receiptMode', receiptMode);
+            const overrideId = document.getElementById('caja-override-quota').value;
+            if (overrideId) { formData.append('overrideQuotaId', overrideId); }
+
+            if (receiptMode === 'single') {
+                const file = document.getElementById('caja-file-single').files[0];
+                if (!file) { toast('Adjunta el comprobante.', { type: 'error' }); return; }
+                formData.append('file', file);
+            } else {
+                for (const item of chosen) {
+                    const input = document.getElementById(`caja-file-${item.id}`);
+                    const file = input && input.files[0];
+                    if (!file) { toast('Falta adjuntar el comprobante de algún mes.', { type: 'error' }); return; }
+                    formData.append(`file_${item.id}`, file);
+                }
+            }
+
+            const submitBtn = document.getElementById('caja-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Registrando…';
+
+            try {
+                const result = await api.upload('/caja/register-payment', formData);
+                showPaymentSuccessModal(result, chosen.length);
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Registrar pago';
+            }
+        });
+    }
+
+    // Modal de confirmación profesional (2026-08-14, pedido explícito) --
+    // reemplaza el banner inline anterior. "Registrar otro pago" limpia
+    // TODO (resetCajaScreen) para poder cobrar al siguiente colono sin
+    // arrastrar nada del anterior; "Cerrar" solo cierra el modal y
+    // refresca la matriz del mismo colono (por si le queda algo pendiente).
+    function showPaymentSuccessModal(result, monthsCount) {
+        const receiptUrl = escapeHtml(resolveDocUrl(result.officialReceiptUrl));
+        cajaModalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>✅ ¡Pago registrado exitosamente!</h2>
+                    <p>Recibo N° <strong>${escapeHtml(result.folio)}</strong> generado —
+                       ${monthsCount} mes(es) cubierto(s), total
+                       <strong>$${Number(result.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>.</p>
+                    <p style="color:var(--color-text-muted);font-size:0.85rem;">Se notificó automáticamente al colono por Mensajería interna.</p>
+                    <div class="panel-modal-actions panel-modal-actions-start">
+                        <a class="btn btn-outline" href="${receiptUrl}" target="_blank" rel="noopener">Ver / Imprimir recibo oficial</a>
+                    </div>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="caja-modal-close">Cerrar</button>
+                        <button type="button" class="btn" id="caja-modal-new-payment">Registrar otro pago</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('caja-modal-close').addEventListener('click', () => {
+            cajaModalMount.innerHTML = '';
+            if (currentOwner) { loadOwnerPending(currentOwner.id); }
+        });
+        document.getElementById('caja-modal-new-payment').addEventListener('click', () => {
+            cajaModalMount.innerHTML = '';
+            resetCajaScreen();
+        });
+    }
+</script>
+</body>
+</html>

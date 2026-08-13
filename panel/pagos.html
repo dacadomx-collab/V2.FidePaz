@@ -13,12 +13,23 @@
 <div id="panel-shell-root"></div>
 
 <script type="module">
-    import { api, getToken, goToLogin } from './js/api.js';
+    import { api, getToken, goToLogin, getActiveUser, panelRoot, apiUrl, formatDateColono } from './js/api.js';
     import { renderShell } from './js/shell.js';
     import { createDataTable, escapeHtml } from './js/components/dataTable.js';
     import { toast } from './js/toast.js';
 
     if (!getToken()) { goToLogin(); }
+
+    // RBAC (2026-08-12): "Pagos" es exclusivo de super_admin. El control
+    // real está en el backend (Auth::requireRole(['super_admin']) en cada
+    // endpoint /payment/*, ver quotas.php) -- esto es solo para no mostrarle
+    // a un admin normal una pantalla llena de errores 403 si llega aquí por
+    // URL directa (el link del sidebar ya no aparece para ese rol, ver
+    // buildNav() en shell.js).
+    const currentUser = getActiveUser();
+    if (!currentUser || currentUser.role !== 'super_admin') {
+        window.location.href = panelRoot() + (currentUser && currentUser.role === 'owner' ? 'mi-cuenta.html' : 'index.html');
+    }
 
     const content = renderShell('pagos', 'Pagos');
 
@@ -29,6 +40,7 @@
     const rowsById = new Map();
 
     const STATUS_LABEL = { 1: 'Pendiente', 2: 'Pagado' };
+    const STATUS_BADGE_CLASS = { 1: 'panel-badge-pending', 2: 'panel-badge-paid' };
 
     const table = createDataTable(tableMount, {
         searchPlaceholder: 'Buscar por código, colono, calle o número oficial…',
@@ -39,11 +51,17 @@
             { key: 'user', label: 'Colono', sortable: true, render: (i) => escapeHtml(i.user.name) || '—' },
             { key: 'numOficial', label: 'Propiedad', sortable: true, render: (i) => `${escapeHtml(i.property.street.name)} #${Number(i.property.numOficial)}` },
             { key: 'amount', label: 'Monto', sortable: true, render: (i) => `$${Number(i.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` },
-            { key: 'dueDate', label: 'Vencimiento', sortable: true, render: (i) => (i.dueDate || '').slice(0, 10) },
-            { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge">${STATUS_LABEL[i.status] || i.status}</span>` },
+            { key: 'dueDate', label: 'Vencimiento', sortable: true, render: (i) => formatDateColono(i.dueDate) },
+            { key: 'status', label: 'Estatus', sortable: true, render: (i) => `<span class="panel-badge ${STATUS_BADGE_CLASS[i.status] || ''}">${STATUS_LABEL[i.status] || i.status}</span>` },
         ],
+        // 2026-08-14: el botón "marcar pagado" usaba ✅ -- un check verde
+        // sentado en la misma fila que el badge rojo "Pendiente" se leía
+        // como una incongruencia visual (parece que YA está marcado/pagado
+        // cuando en realidad es la acción para pagarlo). 💰 es una acción
+        // ("cobrar"), no un estado ("ya pagado"), y no compite visualmente
+        // con el badge de estatus.
         renderActions: (item) => `
-            ${item.status === 1 ? `<button type="button" data-action="pay" title="Marcar como pagado">✅</button>` : ''}
+            ${item.status === 1 ? `<button type="button" data-action="pay" title="Registrar pago">💰</button>` : ''}
             <button type="button" data-action="receipt" title="${item.receipt ? 'Ver comprobante' : 'Adjuntar comprobante'}">${item.receipt ? '📎' : '📄'}</button>
         `,
         fetchPage: async ({ search, sortKey, sortDir, page }) => {
@@ -95,19 +113,16 @@
         });
     }
 
-    // Descarga autenticada del comprobante -- un <a href> plano no puede
-    // mandar el header Authorization, así que se pide por fetch (api.getBlob)
-    // y se abre como blob URL temporal.
-    async function viewReceipt(id) {
-        try {
-            const blob = await api.getBlob(`/payment/get-file/${id}`);
-            const blobUrl = URL.createObjectURL(blob);
-            window.open(blobUrl, '_blank', 'noopener');
-        } catch (err) {
-            toast(err.message, { type: 'error' });
-        }
-    }
-
+    // Solución de raíz definitiva -- un solo clic (2026-08-14): antes había
+    // que dar clic dos veces (uno para pedir el archivo, otro sobre el link
+    // ya listo) porque un <a href> plano no puede mandar el header
+    // Authorization. Ahora /payment/owners, /payment/filter y
+    // /payment/quotas-owners/{id} traen, por cada fila, un token JWT de
+    // vida corta (15 min) YA escopeado a esa cuota exacta (ver
+    // quota_view_token_issue() en routes/quotas.php) -- el <a href> se arma
+    // directo con ese token en la URL, así que abre con UN solo clic normal,
+    // sin ningún fetch ni window.open() de por medio: una navegación de
+    // toda la vida, imposible de bloquear por ningún navegador.
     function openReceiptModal(id) {
         const item = rowsById.get(String(id));
         modalMount.innerHTML = `
@@ -115,11 +130,20 @@
                 <div class="panel-modal">
                     <h2>Comprobante de pago</h2>
                     <p>Colono: <strong>${item ? escapeHtml(item.user.name) : ''}</strong></p>
-                    ${item && item.receipt ? `
+                    ${item && item.receipt && item.receiptAvailable ? `
                         <div class="panel-modal-actions panel-modal-actions-start">
-                            <button type="button" class="btn btn-outline" id="btn-view-receipt">Ver comprobante actual</button>
+                            <a class="btn btn-outline" href="${escapeHtml(apiUrl(`/payment/get-file/${id}?token=${encodeURIComponent(item.receiptViewToken)}`))}" target="_blank" rel="noopener noreferrer">Ver comprobante actual</a>
                         </div>
-                    ` : '<p class="panel-note">Esta cuota no tiene comprobante adjunto todavía.</p>'}
+                    ` : ''}
+                    ${item && item.receipt && !item.receiptAvailable ? `
+                        <p class="panel-note"><span class="panel-badge">🧾 Pago Registrado — Comprobante Histórico en Archivo</span> El archivo original pertenece a la infraestructura V1 y no se migró; el registro del pago sí está íntegro.</p>
+                    ` : ''}
+                    ${item && !item.receipt ? '<p class="panel-note">Esta cuota no tiene comprobante adjunto todavía.</p>' : ''}
+                    ${item && Number(item.status) === 2 ? `
+                        <div class="panel-modal-actions panel-modal-actions-start">
+                            <a class="btn btn-outline" href="${escapeHtml(apiUrl(`/payment/receipt/${id}?token=${encodeURIComponent(item.officialReceiptViewToken)}`))}" target="_blank" rel="noopener noreferrer">🧾 Ver recibo oficial (folio)</a>
+                        </div>
+                    ` : '<p class="panel-note">Sin recibo generado: esta cuota todavía está pendiente de pago.</p>'}
                     <form id="receipt-form">
                         <div class="panel-form-field">
                             <label for="f-receipt-file">${item && item.receipt ? 'Reemplazar con un nuevo archivo' : 'Adjuntar archivo'} (PDF, PNG o JPG, máx. 5 MB)</label>
@@ -135,8 +159,6 @@
         `;
 
         document.getElementById('btn-cancel-receipt').addEventListener('click', closeModal);
-        const viewBtn = document.getElementById('btn-view-receipt');
-        if (viewBtn) { viewBtn.addEventListener('click', () => viewReceipt(id)); }
 
         document.getElementById('receipt-form').addEventListener('submit', async (event) => {
             event.preventDefault();

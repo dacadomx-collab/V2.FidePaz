@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Comunicados — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        /* Chips de filtro (.panel-chip*) ahora viven en panel.css -- se
+           reusan también en mi-cuenta.html. Aquí solo queda lo específico
+           de esta pantalla (grid de tarjetas, modal). */
+        .av-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+            gap: var(--space-md);
+            margin-top: var(--space-md);
+        }
+
+        .aviso-card {
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            padding: var(--space-md);
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+        .aviso-card:hover,
+        .aviso-card:focus-visible {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+            border-color: var(--color-primary);
+        }
+
+        .aviso-card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .aviso-card-badges {
+            display: flex;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+        }
+
+        .aviso-card .aviso-icon {
+            font-size: 1.3rem;
+            line-height: 1;
+        }
+
+        .aviso-card .aviso-date {
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
+        }
+
+        .aviso-card h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .aviso-card .aviso-excerpt {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+            margin: 0;
+            flex: 1;
+        }
+
+        .aviso-card .aviso-pdf-hint {
+            font-size: 0.78rem;
+            color: var(--color-primary);
+            font-weight: 600;
+        }
+
+        .av-badge-public {
+            background-color: var(--color-success-soft);
+            color: var(--color-success);
+        }
+
+        .av-badge-private {
+            background-color: var(--color-bg-alt);
+            color: var(--color-text-muted);
+        }
+
+        .av-modal-date {
+            color: var(--color-text-muted);
+            font-size: 0.85rem;
+            margin-top: -0.5rem;
+        }
+
+        .av-modal-pdf-actions {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-top: var(--space-sm);
+        }
+    </style>
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin, resolveDocUrl, formatDateColono } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { escapeHtml } from './js/components/dataTable.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const content = renderShell('avisos', 'Comunicados');
+
+    const CATEGORY_META = {
+        comunicados: { label: 'Comunicado', icon: '📣' },
+        // "financiero" ya no es una pestaña de filtro (retirada 2026-08-12,
+        // en desuso) -- se deja aquí solo como fallback de render por si
+        // algún registro histórico todavía trae esa categoría.
+        financiero: { label: 'Financiero', icon: '💰' },
+        reportes: { label: 'Informe financiero', icon: '📑' },
+    };
+    const CATEGORY_CHIPS = [
+        { value: '', label: 'Todas' },
+        { value: 'comunicados', label: '📣 Comunicados' },
+        { value: 'reportes', label: '📑 Informes financieros' },
+    ];
+    const currentYear = new Date().getFullYear();
+
+    content.innerHTML = `
+        <div class="panel-filter-group">
+            <p class="panel-filter-label">Año</p>
+            <div class="panel-chip-row" id="av-year-chips"></div>
+        </div>
+        <div class="panel-filter-group">
+            <p class="panel-filter-label">Categoría</p>
+            <div class="panel-chip-row" id="av-category-chips"></div>
+        </div>
+        <div class="av-grid" id="av-grid">
+            <p class="panel-empty-state">Cargando…</p>
+        </div>
+        <div id="av-modal-mount"></div>
+    `;
+
+    const grid = document.getElementById('av-grid');
+    const yearChipsEl = document.getElementById('av-year-chips');
+    const categoryChipsEl = document.getElementById('av-category-chips');
+    const modalMount = document.getElementById('av-modal-mount');
+    const itemsById = new Map();
+
+    // Filtro por año inicia en el año actual (pedido explícito 2026-08-12:
+    // "no tengamos que ver todos solo el año actual") -- si ese año no trae
+    // resultados, el usuario cambia a "Todos" con un clic, pero por defecto
+    // la pantalla no se ve amontonada con años viejos.
+    const state = { year: null, category: '' };
+
+    function renderChips(container, options, activeValue, onSelect) {
+        container.innerHTML = options.map((opt) =>
+            `<button type="button" class="panel-chip${opt.value === activeValue ? ' is-active' : ''}" data-value="${escapeHtml(String(opt.value))}">${escapeHtml(opt.label)}</button>`
+        ).join('');
+        container.querySelectorAll('.panel-chip').forEach((btn) => {
+            btn.addEventListener('click', () => onSelect(btn.dataset.value));
+        });
+    }
+
+    function renderCategoryChips() {
+        renderChips(categoryChipsEl, CATEGORY_CHIPS, state.category, (value) => {
+            state.category = value;
+            renderCategoryChips();
+            loadAvisos();
+        });
+    }
+    renderCategoryChips();
+
+    api.get('/avisos/years').then((data) => {
+        const years = data.years || [];
+        const yearOptions = [{ value: '', label: 'Todos' }, ...years.map((y) => ({ value: String(y), label: String(y) }))];
+        state.year = years.includes(currentYear) ? String(currentYear) : '';
+
+        function renderYearChips() {
+            renderChips(yearChipsEl, yearOptions, state.year, (value) => {
+                state.year = value;
+                renderYearChips();
+                loadAvisos();
+            });
+        }
+        renderYearChips();
+        loadAvisos();
+    }).catch(() => {
+        renderChips(yearChipsEl, [{ value: '', label: 'Todos' }], '', () => {});
+        loadAvisos();
+    });
+
+    function visibilityBadge(item) {
+        // `visibility` puede llegar null (ALTER TABLE pendiente en remoto,
+        // ver api/v2/routes/announcements.php) -- en ese caso no se muestra
+        // ningún badge en vez de afirmar un estado que todavía no se sabe.
+        if (item.visibility === 'public') { return '<span class="panel-badge av-badge-public">🌐 Público</span>'; }
+        if (item.visibility === 'private') { return '<span class="panel-badge av-badge-private">🔒 Privado</span>'; }
+        return '';
+    }
+
+    function renderAvisos(items) {
+        if (!items.length) {
+            grid.innerHTML = '<p class="panel-empty-state">No hay avisos con ese filtro todavía.</p>';
+            return;
+        }
+        grid.innerHTML = items.map((item) => {
+            itemsById.set(String(item.id), item);
+            const meta = CATEGORY_META[item.category] || { label: item.category, icon: '📄' };
+            const dateLabel = formatDateColono(item.publishedAt);
+            return `
+                <button type="button" class="aviso-card" data-aviso-id="${item.id}">
+                    <div class="aviso-card-top">
+                        <span class="aviso-icon">${meta.icon}</span>
+                        <div class="aviso-card-badges">
+                            <span class="panel-badge">${escapeHtml(meta.label)}</span>
+                            ${visibilityBadge(item)}
+                        </div>
+                    </div>
+                    <h3>${escapeHtml(item.title)}</h3>
+                    <p class="aviso-excerpt">${escapeHtml(item.excerpt) || 'Ver aviso completo'}</p>
+                    <span class="aviso-date">${escapeHtml(dateLabel)}</span>
+                    ${item.archivoUrl ? '<span class="aviso-pdf-hint">📎 Incluye PDF</span>' : ''}
+                </button>
+            `;
+        }).join('');
+    }
+
+    function loadAvisos() {
+        grid.innerHTML = '<p class="panel-empty-state">Cargando…</p>';
+        api.get('/avisos', { year: state.year || undefined, category: state.category || undefined })
+            .then((data) => renderAvisos(data.items || []))
+            .catch((err) => {
+                grid.innerHTML = `<p class="panel-empty-state">${escapeHtml(err.message)}</p>`;
+            });
+    }
+
+    grid.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-aviso-id]');
+        if (!card) { return; }
+        const item = itemsById.get(card.dataset.avisoId);
+        if (!item) { return; }
+
+        const meta = CATEGORY_META[item.category] || { label: item.category, icon: '📄' };
+        // Ambas opciones sobre el mismo href: target="_blank" abre el visor
+        // nativo de PDF del navegador (verlo sin descargar); el atributo
+        // "download" fuerza guardar el archivo -- ningún cambio de backend
+        // necesario, es comportamiento estándar del navegador (pedido
+        // explícito 2026-08-12: "las dos opciones, visualizar y descargar").
+        const pdfUrl = escapeHtml(resolveDocUrl(item.archivoUrl));
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>${meta.icon} ${escapeHtml(item.title)}</h2>
+                    <p class="av-modal-date">${escapeHtml(formatDateColono(item.publishedAt))} · ${escapeHtml(meta.label)} ${visibilityBadge(item)}</p>
+                    <div>${item.content || ''}</div>
+                    ${item.archivoUrl ? `
+                        <div class="av-modal-pdf-actions">
+                            <a class="btn btn-outline" href="${pdfUrl}" target="_blank" rel="noopener">👁 Ver PDF</a>
+                            <a class="btn" href="${pdfUrl}" download>⬇ Descargar</a>
+                        </div>
+                    ` : ''}
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="av-modal-close">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('av-modal-close').addEventListener('click', () => {
+            modalMount.innerHTML = '';
+        });
+    });
+</script>
+</body>
+</html>

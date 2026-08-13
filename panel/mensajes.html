@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mensajes — Panel FidePaz</title>
+    <link rel="icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        .msg-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+
+        .msg-toolbar-actions {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+
+        .msg-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .msg-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: 0.75rem var(--space-md);
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .msg-row:hover,
+        .msg-row:focus-visible {
+            border-color: var(--color-primary);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .msg-row-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .msg-row-top {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .msg-row-subject {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .msg-row-user {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .msg-row-excerpt {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin: 0.2rem 0 0;
+        }
+
+        .msg-row-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.3rem;
+            flex-shrink: 0;
+        }
+
+        .msg-row-date {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+
+        .msg-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 45vh;
+            overflow-y: auto;
+            padding: 0.25rem 0.25rem 0.25rem 0;
+            margin: var(--space-sm) 0;
+        }
+
+        .msg-bubble {
+            max-width: 85%;
+            padding: 0.6rem 0.9rem;
+            border-radius: var(--radius);
+            background-color: var(--color-bg-alt);
+            border: 1px solid var(--color-border);
+        }
+
+        .msg-bubble.is-admin {
+            align-self: flex-end;
+            background-color: var(--color-primary-soft);
+            border-color: var(--color-primary-soft);
+        }
+
+        .msg-bubble-meta {
+            font-size: 0.72rem;
+            color: var(--color-text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .msg-bubble-body {
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+        }
+
+        .msg-reply-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .msg-reply-form textarea {
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.9rem;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .msg-status-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: var(--space-sm);
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+
+<div id="panel-shell-root"></div>
+
+<script type="module">
+    import { api, getToken, goToLogin, getActiveUser, formatDateColono } from './js/api.js';
+    import { renderShell } from './js/shell.js';
+    import { escapeHtml } from './js/components/dataTable.js';
+    import { toast } from './js/toast.js';
+
+    if (!getToken()) { goToLogin(); }
+
+    const currentUser = getActiveUser();
+    const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin');
+    const content = renderShell('mensajes', 'Mensajes');
+
+    const STATUS_META = {
+        nuevo: { label: 'Nuevo', cls: 'panel-badge-nuevo' },
+        abierto: { label: 'Abierto', cls: 'panel-badge-abierto' },
+        respondido: { label: 'Respondido', cls: 'panel-badge-respondido' },
+        cerrado: { label: 'Cerrado', cls: 'panel-badge-cerrado' },
+    };
+    const STATUS_CHIPS = [
+        { value: '', label: 'Todos' },
+        { value: 'nuevo', label: 'Nuevo' },
+        { value: 'abierto', label: 'Abierto' },
+        { value: 'respondido', label: 'Respondido' },
+        { value: 'cerrado', label: 'Cerrado' },
+    ];
+
+    // Convierte URLs http(s) y rutas relativas /panel/... en links reales
+    // dentro de un mensaje (2026-08-14, para el aviso automático de pago
+    // que manda un enlace al panel). Escapa PRIMERO con escapeHtml (así el
+    // texto nunca puede inyectar HTML, sin importar quién escribió el
+    // mensaje) y solo DESPUÉS envuelve las coincidencias ya escapadas en
+    // <a> -- nunca al revés. Un solo regex.replace con alternancia (en vez
+    // de dos pasadas separadas) evita re-procesar el HTML que ya se generó
+    // en la primera coincidencia.
+    //
+    // 2026-08-14 (corrección): el mensaje automático de Caja ahora manda
+    // "/panel/mi-cuenta.html" (ruta relativa, ver caja.php) en vez de un
+    // dominio fijo -- para que el link funcione igual en local, staging y
+    // producción. Como ya no empieza con "http(s)://", el regex de arriba
+    // no lo detectaba solo; se agrega una segunda alternativa que reconoce
+    // "/panel/..." y arma el href contra window.location.origin (el mismo
+    // origen que sirve esta página, sea cual sea).
+    function linkify(rawText) {
+        const escaped = escapeHtml(rawText);
+        return escaped.replace(/(https?:\/\/[^\s<]+)|(\/panel\/[a-zA-Z0-9\-_./]+)/g, (match, absoluteUrl, relativePath) => {
+            const href = absoluteUrl || (window.location.origin + relativePath);
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
+        });
+    }
+
+    content.innerHTML = `
+        <div class="msg-toolbar">
+            <div class="msg-toolbar-actions">
+                ${!isAdmin ? '<button type="button" class="btn" id="btn-new-message">+ Nuevo mensaje</button>' : ''}
+                ${isAdmin ? '<button type="button" class="btn" id="btn-new-individual">👤 Mensaje individual</button>' : ''}
+                ${isAdmin ? '<button type="button" class="btn btn-outline" id="btn-broadcast">📢 Mensaje masivo</button>' : ''}
+            </div>
+            ${isAdmin ? '<input type="search" id="msg-search" placeholder="Buscar por asunto, colono o correo…" style="max-width:20rem;padding:0.6rem 0.9rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);">' : ''}
+        </div>
+        ${isAdmin ? `
+            <div class="panel-filter-group">
+                <div class="panel-chip-row" id="msg-status-chips"></div>
+            </div>
+        ` : ''}
+        <div class="msg-list" id="msg-list">
+            <p class="panel-empty-state">Cargando…</p>
+        </div>
+        <div id="msg-modal-mount"></div>
+    `;
+
+    const listEl = document.getElementById('msg-list');
+    const modalMount = document.getElementById('msg-modal-mount');
+    const searchInput = document.getElementById('msg-search');
+    const statusChipsEl = document.getElementById('msg-status-chips');
+    const state = { status: '', q: '' };
+    let searchDebounce = null;
+
+    function renderStatusChips() {
+        if (!statusChipsEl) { return; }
+        statusChipsEl.innerHTML = STATUS_CHIPS.map((opt) =>
+            `<button type="button" class="panel-chip${opt.value === state.status ? ' is-active' : ''}" data-value="${opt.value}">${opt.label}</button>`
+        ).join('');
+        statusChipsEl.querySelectorAll('.panel-chip').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                state.status = btn.dataset.value;
+                renderStatusChips();
+                loadList();
+            });
+        });
+    }
+    renderStatusChips();
+
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(() => {
+                state.q = searchInput.value.trim();
+                loadList();
+            }, 350);
+        });
+    }
+
+    // Estandarización global de fechas (2026-08-14, Objetivo 3): la parte
+    // de fecha usa formatDateColono() ("13 AGO 2026") como en el resto del
+    // panel; la hora se conserva aparte (a diferencia de una cuota o un
+    // recibo, un hilo de conversación sí necesita hora, no solo día).
+    function fmtDate(iso) {
+        if (!iso) { return ''; }
+        const time = iso.replace('T', ' ').slice(11, 16);
+        return time ? `${formatDateColono(iso)}, ${time}` : formatDateColono(iso);
+    }
+
+    function renderList(items) {
+        if (!items.length) {
+            listEl.innerHTML = '<p class="panel-empty-state">No hay mensajes con ese filtro.</p>';
+            return;
+        }
+        listEl.innerHTML = items.map((item) => {
+            const meta = STATUS_META[item.status] || { label: item.status, cls: '' };
+            return `
+                <button type="button" class="msg-row" data-id="${item.id}">
+                    <div class="msg-row-main">
+                        <div class="msg-row-top">
+                            <span class="msg-row-subject">${item.isBroadcast ? '📢 ' : ''}${escapeHtml(item.subject)}</span>
+                            ${isAdmin ? `<span class="msg-row-user">${escapeHtml(item.user.name)}</span>` : ''}
+                        </div>
+                        <p class="msg-row-excerpt">${escapeHtml(item.lastExcerpt || '')}</p>
+                    </div>
+                    <div class="msg-row-meta">
+                        <span class="panel-badge ${meta.cls}">${meta.label}</span>
+                        <span class="msg-row-date">${fmtDate(item.updatedAt)}</span>
+                    </div>
+                </button>
+            `;
+        }).join('');
+    }
+
+    function loadList() {
+        listEl.innerHTML = '<p class="panel-empty-state">Cargando…</p>';
+        api.get('/messages', { status: state.status || undefined, q: state.q || undefined })
+            .then((data) => renderList(data.items || []))
+            .catch((err) => {
+                listEl.innerHTML = `<p class="panel-empty-state">${escapeHtml(err.message)}</p>`;
+            });
+    }
+    loadList();
+
+    listEl.addEventListener('click', (event) => {
+        const row = event.target.closest('[data-id]');
+        if (row) { openThread(Number(row.dataset.id)); }
+    });
+
+    function closeModal() {
+        modalMount.innerHTML = '';
+    }
+
+    // Cambio automático de estatus al abrir un mensaje (2026-08-14,
+    // Objetivo 2.1): el backend YA marca "nuevo" -> "abierto" dentro de
+    // GET /messages/{id} en cuanto un admin/super_admin lo consulta (ver
+    // handle_messages_detail() en routes/messages.php) -- no hace falta un
+    // PATCH /messages/{id}/read aparte, el efecto ya viene en `data.thread`.
+    // Lo que faltaba era reflejarlo en la bandeja SIN recargar toda la
+    // lista: updateListRowStatus() actualiza solo el badge de esa fila.
+    function updateListRowStatus(id, status) {
+        const row = listEl.querySelector(`[data-id="${id}"]`);
+        if (!row) { return; }
+        const badge = row.querySelector('.panel-badge');
+        if (!badge) { return; }
+        const meta = STATUS_META[status] || { label: status, cls: '' };
+        badge.className = `panel-badge ${meta.cls}`;
+        badge.textContent = meta.label;
+    }
+
+    function openThread(id) {
+        api.get(`/messages/${id}`).then((data) => {
+            updateListRowStatus(id, data.thread.status);
+            renderThreadModal(data.thread, data.replies);
+        }).catch((err) => {
+            toast(err.message, { type: 'error' });
+        });
+    }
+
+    function renderThreadModal(thread, replies) {
+        const meta = STATUS_META[thread.status] || { label: thread.status, cls: '' };
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>${thread.isBroadcast ? '📢 ' : ''}${escapeHtml(thread.subject)}</h2>
+                    <div class="msg-status-row">
+                        <span class="panel-badge ${meta.cls}">${meta.label}</span>
+                        ${isAdmin ? `<span style="color:var(--color-text-muted);font-size:0.85rem;">${escapeHtml(thread.user.name)} · ${escapeHtml(thread.user.email)}</span>` : ''}
+                        ${isAdmin ? `
+                            <select id="msg-status-select" style="margin-left:auto;padding:0.35rem 0.6rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);">
+                                ${Object.entries(STATUS_META).map(([value, m]) => `<option value="${value}" ${value === thread.status ? 'selected' : ''}>${m.label}</option>`).join('')}
+                            </select>
+                        ` : ''}
+                    </div>
+                    <div class="msg-thread" id="msg-thread-body">
+                        ${replies.map((r) => {
+                            const isFromOwner = r.authorRole === 'owner';
+                            const from = isFromOwner ? r.authorName : 'Administración FidePaz';
+                            const to = isFromOwner ? 'Administración de FidePaz' : (thread.isBroadcast ? 'Todos' : thread.user.name);
+                            return `
+                            <div class="msg-bubble ${!isFromOwner ? 'is-admin' : ''}">
+                                <div class="msg-bubble-meta">De: ${escapeHtml(from)} → Para: ${escapeHtml(to)} · ${fmtDate(r.createdAt)}</div>
+                                <div class="msg-bubble-body">${linkify(r.body)}</div>
+                            </div>
+                        `;
+                        }).join('')}
+                    </div>
+                    ${thread.status !== 'cerrado' || isAdmin ? `
+                        <form class="msg-reply-form" id="msg-reply-form">
+                            <textarea id="msg-reply-body" rows="3" placeholder="Escribe tu respuesta…" required></textarea>
+                            <div class="panel-modal-actions">
+                                <button type="button" class="btn btn-outline" id="msg-modal-close">Cerrar</button>
+                                <button type="submit" class="btn">Enviar</button>
+                            </div>
+                        </form>
+                    ` : `
+                        <div class="panel-modal-actions">
+                            <button type="button" class="btn btn-outline" id="msg-modal-close">Cerrar</button>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+        document.getElementById('msg-modal-close').addEventListener('click', () => {
+            closeModal();
+            loadList();
+        });
+
+        const statusSelect = document.getElementById('msg-status-select');
+        if (statusSelect) {
+            statusSelect.addEventListener('change', async () => {
+                try {
+                    await api.put(`/messages/${thread.id}/status`, { status: statusSelect.value });
+                    toast('Estatus actualizado.');
+                } catch (err) {
+                    toast(err.message, { type: 'error' });
+                }
+            });
+        }
+
+        const replyForm = document.getElementById('msg-reply-form');
+        if (replyForm) {
+            replyForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const body = document.getElementById('msg-reply-body').value.trim();
+                if (!body) { return; }
+                try {
+                    await api.post(`/messages/${thread.id}/reply`, { body });
+                    openThread(thread.id);
+                } catch (err) {
+                    toast(err.message, { type: 'error' });
+                }
+            });
+        }
+    }
+
+    // "+ Nuevo mensaje" solo existe en el DOM para role=owner (ver arriba) --
+    // siempre se dirige a sí mismo. admin/super_admin usan
+    // "👤 Mensaje individual" (con buscador de destinatario, ver abajo) o
+    // "📢 Mensaje masivo" para iniciar contacto.
+    const newMessageBtn = document.getElementById('btn-new-message');
+    if (newMessageBtn) {
+        newMessageBtn.addEventListener('click', () => {
+            modalMount.innerHTML = `
+                <div class="panel-modal-overlay">
+                    <div class="panel-modal">
+                        <h2>Nuevo mensaje</h2>
+                        <form id="new-msg-form">
+                            <div class="panel-form-field">
+                                <label for="new-msg-subject">Asunto</label>
+                                <input type="text" id="new-msg-subject" required maxlength="200">
+                            </div>
+                            <div class="panel-form-field">
+                                <label for="new-msg-body">Mensaje</label>
+                                <textarea id="new-msg-body" rows="4" required style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);font-family:inherit;"></textarea>
+                            </div>
+                            <div class="panel-modal-actions">
+                                <button type="button" class="btn btn-outline" id="new-msg-cancel">Cancelar</button>
+                                <button type="submit" class="btn">Enviar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('new-msg-cancel').addEventListener('click', closeModal);
+            document.getElementById('new-msg-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const subject = document.getElementById('new-msg-subject').value.trim();
+                const body = document.getElementById('new-msg-body').value.trim();
+                try {
+                    await api.post('/messages', { subject, body });
+                    toast('Mensaje enviado.');
+                    closeModal();
+                    loadList();
+                } catch (err) {
+                    toast(err.message, { type: 'error' });
+                }
+            });
+        });
+    }
+
+    // "👤 Mensaje individual" (2026-08-14, solo admin/super_admin): igual
+    // que "+ Nuevo mensaje" pero con un buscador AJAX (debounce 300ms,
+    // mismo patrón que panel/caja.html) para elegir a QUÉ colono va
+    // dirigido -- POST /messages con targetUserId.
+    const newIndividualBtn = document.getElementById('btn-new-individual');
+    if (newIndividualBtn) {
+        newIndividualBtn.addEventListener('click', () => {
+            modalMount.innerHTML = `
+                <div class="panel-modal-overlay">
+                    <div class="panel-modal">
+                        <h2>Mensaje individual</h2>
+                        <form id="individual-msg-form">
+                            <div class="panel-form-field" style="position:relative;">
+                                <label for="individual-msg-search">Destinatario (nombre, lote o correo)</label>
+                                <input type="text" id="individual-msg-search" autocomplete="off" placeholder="Escribe para buscar…" required>
+                                <input type="hidden" id="individual-msg-recipient-id">
+                                <div id="individual-msg-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background-color:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius);box-shadow:0 12px 30px rgba(0,0,0,0.15);max-height:14rem;overflow-y:auto;"></div>
+                            </div>
+                            <div class="panel-form-field">
+                                <label for="individual-msg-subject">Asunto</label>
+                                <input type="text" id="individual-msg-subject" required maxlength="200">
+                            </div>
+                            <div class="panel-form-field">
+                                <label for="individual-msg-body">Mensaje</label>
+                                <textarea id="individual-msg-body" rows="4" required style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);font-family:inherit;"></textarea>
+                            </div>
+                            <div class="panel-modal-actions">
+                                <button type="button" class="btn btn-outline" id="individual-msg-cancel">Cancelar</button>
+                                <button type="submit" class="btn" id="individual-msg-submit" disabled>Enviar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('individual-msg-cancel').addEventListener('click', closeModal);
+
+            const searchInput = document.getElementById('individual-msg-search');
+            const recipientIdInput = document.getElementById('individual-msg-recipient-id');
+            const resultsEl = document.getElementById('individual-msg-results');
+            const submitBtn = document.getElementById('individual-msg-submit');
+            let debounce = null;
+
+            searchInput.addEventListener('input', () => {
+                recipientIdInput.value = '';
+                submitBtn.disabled = true;
+                clearTimeout(debounce);
+                const q = searchInput.value.trim();
+                if (q.length < 2) { resultsEl.style.display = 'none'; return; }
+                debounce = setTimeout(async () => {
+                    try {
+                        const data = await api.get('/messages/search-recipient', { q });
+                        const items = data.items || [];
+                        if (!items.length) {
+                            resultsEl.innerHTML = '<div style="padding:0.6rem 1rem;color:var(--color-text-muted);">Sin resultados.</div>';
+                        } else {
+                            resultsEl.innerHTML = items.map((u) => `
+                                <button type="button" class="caja-search-item" data-id="${u.id}" data-name="${escapeHtml(u.name)}" style="display:block;width:100%;text-align:left;padding:0.6rem 1rem;border:none;border-bottom:1px solid var(--color-border);background:none;color:var(--color-text);cursor:pointer;">
+                                    <strong>${escapeHtml(u.name)}</strong>${u.code ? ` (${escapeHtml(u.code)})` : ''}<br>
+                                    <span style="font-size:0.8rem;color:var(--color-text-muted);">${escapeHtml(u.email)}</span>
+                                </button>
+                            `).join('');
+                        }
+                        resultsEl.style.display = 'block';
+                    } catch (err) {
+                        toast(err.message, { type: 'error' });
+                    }
+                }, 300);
+            });
+
+            resultsEl.addEventListener('click', (event) => {
+                const btn = event.target.closest('[data-id]');
+                if (!btn) { return; }
+                recipientIdInput.value = btn.dataset.id;
+                searchInput.value = btn.dataset.name;
+                resultsEl.style.display = 'none';
+                submitBtn.disabled = false;
+            });
+
+            document.addEventListener('click', (event) => {
+                if (!event.target.closest('#individual-msg-search') && !event.target.closest('#individual-msg-results')) {
+                    resultsEl.style.display = 'none';
+                }
+            });
+
+            document.getElementById('individual-msg-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const targetUserId = recipientIdInput.value;
+                if (!targetUserId) {
+                    toast('Selecciona un colono de la lista.', { type: 'error' });
+                    return;
+                }
+                const subject = document.getElementById('individual-msg-subject').value.trim();
+                const body = document.getElementById('individual-msg-body').value.trim();
+                try {
+                    await api.post('/messages', { subject, body, targetUserId: Number(targetUserId) });
+                    toast('Mensaje enviado.');
+                    closeModal();
+                    loadList();
+                } catch (err) {
+                    toast(err.message, { type: 'error' });
+                }
+            });
+        });
+    }
+
+    const broadcastBtn = document.getElementById('btn-broadcast');
+    if (broadcastBtn) {
+        broadcastBtn.addEventListener('click', () => {
+            modalMount.innerHTML = `
+                <div class="panel-modal-overlay">
+                    <div class="panel-modal">
+                        <h2>📢 Mensaje masivo</h2>
+                        <p style="color:var(--color-text-muted);font-size:0.85rem;">Se enviará a todos los colonos activos, cada uno en su propia bandeja.</p>
+                        <form id="broadcast-form">
+                            <div class="panel-form-field">
+                                <label for="bc-subject">Asunto</label>
+                                <input type="text" id="bc-subject" required maxlength="200">
+                            </div>
+                            <div class="panel-form-field">
+                                <label for="bc-body">Mensaje</label>
+                                <textarea id="bc-body" rows="4" required style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--color-border);border-radius:var(--radius);background-color:var(--color-bg);color:var(--color-text);font-family:inherit;"></textarea>
+                            </div>
+                            <div class="panel-modal-actions">
+                                <button type="button" class="btn btn-outline" id="bc-cancel">Cancelar</button>
+                                <button type="submit" class="btn">Enviar a todos</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('bc-cancel').addEventListener('click', closeModal);
+            document.getElementById('broadcast-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const subject = document.getElementById('bc-subject').value.trim();
+                const body = document.getElementById('bc-body').value.trim();
+                try {
+                    const result = await api.post('/messages/broadcast', { subject, body });
+                    toast(`Enviado a ${result.recipients} colonos.`);
+                    closeModal();
+                    loadList();
+                } catch (err) {
+                    toast(err.message, { type: 'error' });
+                }
+            });
+        });
+    }
+</script>
+</body>
+</html>

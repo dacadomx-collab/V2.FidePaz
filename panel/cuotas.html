@@ -25,6 +25,7 @@
     content.innerHTML = `
         <div class="panel-toolbar">
             <button type="button" class="btn" id="btn-nuevo">+ Nuevo tipo de cuota</button>
+            <button type="button" class="btn btn-outline" id="btn-generate-period">📅 Generar cuotas del mes</button>
         </div>
         <div id="table-mount"></div>
         <div id="modal-mount"></div>
@@ -62,6 +63,7 @@
     });
 
     document.getElementById('btn-nuevo').addEventListener('click', () => openForm(null));
+    document.getElementById('btn-generate-period').addEventListener('click', openGeneratePeriodModal);
 
     function closeModal() {
         modalMount.innerHTML = '';
@@ -113,6 +115,80 @@
                 table.reload();
             } catch (err) {
                 toast(err.message, { type: 'error' });
+            }
+        });
+    }
+
+    // "Generar cuotas del mes" (2026-08-13): expone POST /quota/generate-period
+    // (ya existía, aprobado 2026-08-10, pero nunca tuvo botón en el panel ni
+    // automatización -- ver también api/v2/cli/generate_monthly_quotas.php
+    // para la corrida automática por cron el día 1). Exige vista previa
+    // (dryRun) antes de habilitar el botón real, para no generar cuotas a
+    // ciegas -- mismo período puede reintentarse sin miedo, el backend es
+    // idempotente (salta property_id+mes ya existentes).
+    function openGeneratePeriodModal() {
+        const now = new Date();
+        const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        modalMount.innerHTML = `
+            <div class="panel-modal-overlay">
+                <div class="panel-modal">
+                    <h2>Generar cuotas del mes</h2>
+                    <p style="color:var(--color-text-muted);font-size:0.85rem;">Crea la cuota pendiente del período para cada propiedad que aún no la tenga (si ya está pagada por adelantado, no se toca). Idempotente: reintentar el mismo período no duplica nada.</p>
+                    <div class="panel-form-field">
+                        <label for="gp-period">Período</label>
+                        <input type="month" id="gp-period" value="${defaultPeriod}">
+                    </div>
+                    <div id="gp-preview"></div>
+                    <div class="panel-modal-actions">
+                        <button type="button" class="btn btn-outline" id="gp-cancel">Cancelar</button>
+                        <button type="button" class="btn btn-outline" id="gp-preview-btn">Vista previa</button>
+                        <button type="button" class="btn" id="gp-run-btn" disabled>Generar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const periodInput = document.getElementById('gp-period');
+        const previewEl = document.getElementById('gp-preview');
+        const runBtn = document.getElementById('gp-run-btn');
+        let lastPreviewedPeriod = null;
+
+        document.getElementById('gp-cancel').addEventListener('click', closeModal);
+
+        document.getElementById('gp-preview-btn').addEventListener('click', async () => {
+            const period = periodInput.value;
+            if (!period) { return; }
+            previewEl.innerHTML = '<p class="panel-empty-state">Calculando…</p>';
+            runBtn.disabled = true;
+            try {
+                const data = await api.post('/quota/generate-period', { period, dryRun: true });
+                previewEl.innerHTML = `
+                    <p><strong>${data.summary.createdCount}</strong> cuotas nuevas se crearían ·
+                    ${data.summary.skippedExistingCount} ya existen para ese período ·
+                    ${data.summary.skippedNoOwnerCount} propiedad(es) sin propietario asignable (requieren revisión manual)</p>
+                `;
+                lastPreviewedPeriod = period;
+                runBtn.disabled = data.summary.createdCount === 0;
+            } catch (err) {
+                previewEl.innerHTML = `<p class="panel-empty-state">${err.message}</p>`;
+            }
+        });
+
+        runBtn.addEventListener('click', async () => {
+            const period = periodInput.value;
+            if (period !== lastPreviewedPeriod) {
+                toast('Vuelve a correr la vista previa para este período antes de generar.', { type: 'error' });
+                return;
+            }
+            runBtn.disabled = true;
+            try {
+                const data = await api.post('/quota/generate-period', { period, dryRun: false });
+                toast(`${data.summary.createdCount} cuotas generadas para ${period}.`);
+                closeModal();
+            } catch (err) {
+                toast(err.message, { type: 'error' });
+                runBtn.disabled = false;
             }
         });
     }
