@@ -1,6 +1,6 @@
 # MANUAL MAESTRO DEL SISTEMA — FidePaz V2.0
 
-**Versión:** 2.0 | **Fecha:** 2026-08-13 | **Estado:** Documento vivo — actualizar en la misma
+**Versión:** 2.1 | **Fecha:** 2026-08-14 | **Estado:** Documento vivo — actualizar en la misma
 sesión en que cambie el código (Regla de Cierre de Hito, `CLAUDE.md` §5)
 
 > Este manual consolida, en un solo lugar, lo que ya vive repartido entre `knowledge/02_CODEX_Y_SCHEMA_MAESTRO.md`
@@ -171,12 +171,33 @@ Fuente exhaustiva y siempre vigente: `knowledge/03_CONTRATOS_API_Y_RUTAS.md`.
 ### Pagos ("Pagos" clásico — **solo super_admin**) y autoservicio del colono
 | Método | Ruta | Rol | Notas |
 | :--- | :--- | :--- | :--- |
-| GET | `/payment`, `/payment/filter` | **super_admin** | Listado admin de todos los pagos |
+| GET | `/payment`, `/payment/filter` | **super_admin** | Listado admin de todos los pagos — cada fila incluye `receiptViewToken`/`officialReceiptViewToken`, ver 4.1 |
 | PUT | `/payment/pay/{id}` | **super_admin** | Marca pagado manualmente (1 mes, sin recibo oficial) |
 | POST | `/payment/upload-receipt` | **super_admin** | Sube comprobante suelto |
-| GET | `/payment/get-file/{id}` | owner (solo lo propio) o **super_admin** | Descarga comprobante |
-| GET | `/payment/owners` | JWT (owner incluido) | Autoservicio — "mis cuotas" |
+| GET | `/payment/get-file/{id}` | owner (solo lo propio) o **super_admin**, **o** `?token=` válido | Descarga comprobante (archivo real subido) |
+| GET | `/payment/receipt/{id}` | owner (solo lo propio) o **super_admin**, **o** `?token=` válido | **Nueva 2026-08-13.** Recibo Oficial renderizado al vuelo desde la BD — nunca lee/escribe archivo. Cubre también el histórico V1. Ver 6.3 |
+| GET | `/payment/owners` | JWT (owner incluido) | Autoservicio — "mis cuotas", también incluye los tokens de 4.1 |
 | GET | `/payment/list-owners`, `/payment/download-report*` | JWT | Pantalla "Estado de Cuenta" (no restringida a super_admin, es reporte distinto de "Pagos") |
+
+#### 4.1 Enlaces de un solo clic para comprobante/recibo (tokens de vida corta)
+
+`GET /payment/get-file/{id}` y `GET /payment/receipt/{id}` aceptan **dos** formas de
+autenticación: el `Authorization: Bearer <JWT>` de siempre, **o** un parámetro `?token=` de un
+solo propósito. Este segundo mecanismo (2026-08-14) resuelve un problema real de UX: un `<a
+href>` normal no puede mandar el header `Authorization`, así que abrir el archivo exigía primero
+un `fetch()` autenticado y RECIÉN AHÍ un `window.open()` — que Chrome (y otros navegadores)
+bloqueaba como pop-up no solicitado por no ocurrir de forma perfectamente síncrona con el clic.
+
+En vez de pelear con esa heurística, cada fila de `/payment/owners`, `/payment/filter` y
+`/payment/quotas-owners/{id}` trae ya emitido un JWT de **15 minutos de vida**, firmado con el
+mismo `JWT_SECRET` (reutiliza `Jwt::issue()`/`Jwt::verify()` de `core/Jwt.php`, sin criptografía
+nueva), con claims `{quotaId, userId, purpose}` — `purpose` es `'comprobante'` o `'recibo'`, así
+que un token nunca puede reutilizarse para el otro archivo ni para otra cuota distinta a la que
+fue emitido (`quota_view_token_verify()` en `routes/quotas.php` valida ambas cosas). El frontend
+arma el `<a href="...&token=...">` directo desde el primer render de la fila: un solo clic humano
+normal, sin `fetch`/`window.open()` de por medio, así que ningún bloqueador de pop-ups puede
+interferir. Si el token viene ausente/vencido/no coincide, la ruta cae automáticamente al flujo de
+siempre (Bearer + verificación de dueño/rol) — 100% retrocompatible.
 
 ### Módulo de Caja ("Registrar Pago" — **exclusivo super_admin**)
 | Método | Ruta | Notas |
@@ -227,12 +248,41 @@ Fuente exhaustiva y siempre vigente: `knowledge/03_CONTRATOS_API_Y_RUTAS.md`.
    imprimir/guardar como PDF (Ctrl+P). El colono puede ver este mismo recibo desde su propia
    cuenta (`mi-cuenta.html`/`pagos.html`).
 
-### 5.2 Generación mensual automática de cuotas
-- **Automática:** cron de cPanel (`api/v2/cli/generate_monthly_quotas.php`), día 1 de cada mes.
-  Revisa cada propiedad activa; si ya tiene una cuota (pagada o pendiente) para el mes, no hace
-  nada; si no, inserta una nueva en `pendiente` con la tarifa asignada a esa propiedad.
-- **Manual:** botón "Generar cuotas del mes" en `panel/cuotas.html` — exige correr la vista
-  previa (`dryRun`) antes de habilitar el botón real, para nunca generar a ciegas.
+### 5.2 Generación mensual automática de cuotas — despliegue del Cron Job
+
+**Automática vía Cron Job de cPanel** — cPanel → *Cron Jobs* → *Add New Cron Job*:
+
+| Campo | Valor |
+| :--- | :--- |
+| Frecuencia (crontab) | `0 0 1 * *` — minuto 0, hora 0, día 1 de cada mes, todos los meses, cualquier día de la semana |
+| Comando | `php /home/mercagee/public_html/v2.fidepaz.org/api/v2/cli/generate_monthly_quotas.php` |
+
+> Ajustar `/home/mercagee/public_html/v2.fidepaz.org/` a la ruta real del `home` de la cuenta de
+> hosting si cambia (verificar con `pwd` en una terminal SSH de cPanel, o con el "Document Root"
+> que muestra cPanel para el dominio/subdominio real). El script se autoprotege contra ejecución
+> por HTTP por partida doble — `api/v2/cli/.htaccess` (`Require all denied`) **y** un chequeo
+> `PHP_SAPI !== 'cli'` dentro del propio script — así que aunque alguien adivine la URL, nunca se
+> ejecuta desde un navegador, solo desde el cron real del servidor.
+
+**Qué hace exactamente, propiedad por propiedad** (`generate_quotas_for_period()`, núcleo
+compartido con `POST /quota/generate-period`):
+1. Recorre toda `property` activa (`deleteAt IS NULL`) que tenga un `quota_id` (tarifa) asignado.
+2. **Validación anti-duplicado/anti-sobrecarga:** si esa propiedad **ya tiene** una fila en
+   `user_quotas` para el mes que se está generando (`DATE_FORMAT(due_date,'%Y-%m') = período`),
+   la salta por completo — sin importar si esa cuota ya está pagada o sigue pendiente. Este es el
+   mecanismo real que evita cobrar dos veces el mismo mes a un colono: cubre tanto el caso "el
+   cron ya corrió este mes" como el caso de un colono que adelantó pagos y ya tiene ese período
+   cubierto de antemano — en ambos casos la fila ya existe, así que nunca se genera una segunda.
+3. Si no hay fila para ese mes, resuelve el dueño más reciente conocido de esa propiedad y crea
+   una `user_quotas` nueva en `status=1` (pendiente), con el `due_date` recortado al último día
+   real del mes si el día de corte configurado no existe (ej. día 31 en un mes de 30 días).
+4. Propiedades sin ningún colono asociado en su historial quedan en `skippedNoOwner` — requieren
+   asignación manual, el script nunca inventa un propietario.
+
+**Manual (respaldo/reintento):** botón "Generar cuotas del mes" en `panel/cuotas.html` — exige
+correr la vista previa (`dryRun`) antes de habilitar el botón real, para nunca generar a ciegas.
+Útil si el cron falla un mes o para regenerar un período pasado específico
+(`POST /quota/generate-period`, autenticado admin/super_admin).
 
 ### 5.3 Mensajería masiva (`panel/mensajes.html`)
 Botón "📢 Mensaje masivo" (solo admin/super_admin) — un asunto y cuerpo que se envía como un hilo
@@ -257,10 +307,58 @@ de privacidad (una vez aceptado, el botón desaparece y queda un recordatorio de
 Vista elegante, agrupada por año, con badges de color (verde=pagado, rojo=pendiente) — accesible
 desde "Ver estado de cuenta elegante" en Mi cuenta.
 
-### 6.3 Descarga de recibos y comprobantes
+### 6.3 Arquitectura de recibos y comprobantes — render dinámico, cero basura en disco
+
 Cuando un pago se registra desde el Módulo de Caja, el colono puede ver tanto el comprobante de
 depósito (subido por la administración) como el **recibo oficial del sistema** (con folio) desde
-su historial de cuotas.
+su historial de cuotas (`mi-cuenta.html`), desde `panel/pagos.html` (admin) o desde el Estado de
+Cuenta imprimible. Dos piezas muy distintas, con dos arquitecturas de almacenamiento distintas a
+propósito:
+
+**Recibo Oficial (`GET /payment/receipt/{id}`) — 100% dinámico, sin archivo:**
+El HTML del recibo **no se guarda como archivo que el servidor tenga que servir para verlo**. Cada
+vez que alguien pide verlo, `handle_payment_receipt_view()` (`api/v2/routes/quotas.php`) arma el
+documento completo **al vuelo**, en la misma petición, a partir de columnas que ya existen en
+`user_quotas`/`user`/`property`/`street` (importe, fecha, folio, colono, propiedad) — y lo entrega
+directo como la respuesta HTTP (`Content-Type: text/html`). No hay `file_put_contents()`, no hay
+`readfile()`, no hay ninguna escritura a disco en esta ruta. Consecuencias reales:
+- **Ver el mismo recibo 1 vez o 1,000 veces genera exactamente 0 bytes nuevos en el servidor** —
+  no existe una "copia cacheada" que crezca con cada vista. La única escritura real de un recibo
+  a disco ocurre una sola vez, al momento del cobro en Caja (ver nota al final de esta sección),
+  nunca al volver a abrirlo.
+- **Cubre también el histórico completo** (10,758 cuotas migradas de la V1, que jamás generaron
+  un recibo porque ese concepto no existía antes de V2): cualquier cuota con `status=2` puede
+  mostrar su recibo bajo demanda, sin necesidad de "regenerar" ni "migrar" nada primero.
+- **Apertura de un solo clic, sin bloqueo de pop-ups:** el `<a href>` de "Ver recibo oficial" no
+  dispara ningún `fetch()`/`window.open()` por script — apunta directo a la URL de la API con un
+  token de sesión de un solo uso incluido (ver 4.1 abajo), así que el navegador la trata como una
+  navegación normal, imposible de bloquear.
+- **Privacidad/Zero-Trust:** sin token válido y escopeado a esa cuota exacta, la ruta exige el JWT
+  de sesión normal + verificación de dueño — nadie puede enumerar recibos ajenos cambiando el
+  número en la URL.
+
+**Comprobante de depósito (`GET /payment/get-file/{id}`) — sí es un archivo real, y así debe ser:**
+A diferencia del recibo, el comprobante (la foto/PDF del depósito o transferencia que sube el
+colono o la administración) **es contenido real subido por una persona** — no hay forma de
+"regenerarlo" desde datos de la BD, así que **sí** vive como archivo en
+`assets/uploads/receipts/` (excluido de git, ver `.gitignore`). Esto es correcto e inevitable: es
+evidencia de un depósito real, no un documento derivado. Lo que sí es 100% dinámico ahí es el
+**enlace de acceso**: igual que el recibo, se abre con un token de un solo uso de vida corta, sin
+pasar por `fetch`/blob de por medio.
+
+**En resumen — dos piezas, una sola filosofía:** todo lo que se PUEDE derivar de datos que ya
+viven en la BD (el recibo) se genera al vuelo y nunca toca el disco al verse; todo lo que es
+inherentemente un archivo subido por una persona (el comprobante) sí se guarda, pero su acceso es
+igual de dinámico y seguro. Ningún archivo de recibo/comprobante se genera "por si acaso" —
+excepto la única excepción documentada abajo.
+
+**Única escritura de recibo a disco (por diseño, no accidental):** `POST /caja/register-payment`
+sigue guardando, además, UNA copia estática del recibo en `assets/uploads/official_receipts/` en
+el momento exacto del cobro — como bitácora/respaldo histórico de "así se veía el recibo el día
+que se generó", independiente de si el diseño del recibo cambia después. Esa copia **nunca** se
+usa para mostrarle el recibo a nadie (eso siempre pasa por el render dinámico de arriba); es
+puramente un archivo de auditoría, uno por cobro real, no "basura" que crezca sin control cada vez
+que alguien mira un recibo.
 
 ### 6.4 Comunicados (`panel/avisos.html`)
 Todos los avisos e informes financieros publicados (públicos y privados — estar dentro del panel

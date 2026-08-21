@@ -6,12 +6,14 @@ declare(strict_types=1);
  * Job real de cPanel el día 1 de cada mes (Objetivo 1, 2026-08-13).
  *
  * Uso en cPanel -> Cron Jobs:
- *   0 3 1 * * /usr/bin/php /home/mercagee/public_html/v2.fidepaz.org/api/v2/cli/generate_monthly_quotas.php
- * (3am del día 1, ajustar la ruta real al home del hosting). El período se
- * calcula solo a partir de la fecha real del servidor -- no requiere
- * parámetro. Para generar un período distinto al actual (ej. reintento
- * manual de un mes pasado), usar POST /api/v2/quota/generate-period
- * autenticado como admin/super_admin, no este script.
+ *   0 0 1 * * php /home/mercagee/public_html/v2.fidepaz.org/api/v2/cli/generate_monthly_quotas.php
+ * (00:00 del día 1 de cada mes -- estandarizado 2026-08-14, ver
+ * docs/MANUAL_SISTEMA_FIDEPAZ_V2.md §5.2; ajustar la ruta real al home del
+ * hosting si cambia). El período se calcula solo a partir de la fecha real
+ * del servidor -- no requiere parámetro. Para generar un período distinto
+ * al actual (ej. reintento manual de un mes pasado), usar
+ * POST /api/v2/quota/generate-period autenticado como admin/super_admin,
+ * no este script.
  *
  * Bloqueado por partida doble contra ejecución vía HTTP: api/v2/cli/.htaccess
  * (Require all denied) + el chequeo de PHP_SAPI de aquí abajo.
