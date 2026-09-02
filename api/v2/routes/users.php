@@ -236,6 +236,18 @@ function handle_user_update(int $id): void
         Response::error(400, 'password debe tener al menos 6 caracteres');
     }
 
+    // Mismo bug de `handle_user_create`: `uq_user_email` es UNIQUE sobre
+    // toda la tabla. Sin este chequeo, cambiar el correo a uno ya usado por
+    // otro colono (activo o dado de baja) revienta el UPDATE contra esa
+    // restricción -> 500 sin control.
+    if (strcasecmp($email, (string) $before['email']) !== 0) {
+        $dup = $pdo->prepare('SELECT id FROM `user` WHERE email = ? AND id != ?');
+        $dup->execute([$email, $id]);
+        if ($dup->fetch() !== false) {
+            Response::error(400, 'Ya existe un colono con ese correo');
+        }
+    }
+
     if ($password !== '') {
         $stmt = $pdo->prepare(
             'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, password=?, updateAt=NOW()
@@ -296,7 +308,14 @@ function handle_user_create(): void
     }
 
     $pdo = Database::connection();
-    $dup = $pdo->prepare('SELECT id FROM `user` WHERE email = ? AND deleteAt IS NULL');
+    // Sin "AND deleteAt IS NULL": `uq_user_email` es UNIQUE sobre TODA la
+    // tabla (colonos activos y dados de baja), no solo los activos. Con el
+    // filtro, un correo reciclado de un colono ya eliminado pasaba esta
+    // validación y reventaba el INSERT contra la restricción UNIQUE real de
+    // MySQL -> 500 sin control (bug real reportado 2026-09-02: "crear
+    // residente" fallaba con error de servidor al reusar el correo de un
+    // colono dado de baja).
+    $dup = $pdo->prepare('SELECT id FROM `user` WHERE email = ?');
     $dup->execute([$email]);
     if ($dup->fetch() !== false) {
         Response::error(400, 'Ya existe un colono con ese correo');

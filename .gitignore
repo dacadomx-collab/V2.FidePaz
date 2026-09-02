@@ -155,3 +155,4 @@ composer.phar
 
 # ── ESTADO DE RATE-LIMITING (runtime, no versionar) ──────────────────────────
 /api/v2/storage/ratelimit/*.json
+.env*
