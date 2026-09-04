@@ -344,6 +344,30 @@ function handle_property_create(): void
             }
         }
 
+        // Autocompletar `user.code` (código de propiedad, ej. "OLA-75") al
+        // asignar la primera propiedad de un colono -- recomendación
+        // 2026-09-03: el código sigue la nomenclatura real ya usada en los
+        // 205 colonos migrados de la V1 (3 letras de la calle en mayúsculas
+        // + guion + número oficial, confirmado contra `db/seed_data.sql`:
+        // "Almejas"->ALM, "Olas"->OLA, "Privada ..."->PRI para las 6
+        // privadas distintas, todas colapsan al mismo prefijo porque todas
+        // empiezan con "Privada"). Solo si el colono NO tiene ya un código
+        // (`code IS NULL OR code = ''`) -- un colono con varias propiedades
+        // conserva el código que ya tenía, y el campo sigue siendo editable
+        // a mano desde el formulario de Propietarios si el admin prefiere
+        // otro valor.
+        if ($ownerId !== null && $streetId !== null) {
+            $streetStmt = $pdo->prepare('SELECT name FROM street WHERE id = ?');
+            $streetStmt->execute([(int) $streetId]);
+            $streetName = $streetStmt->fetchColumn();
+            if ($streetName !== false && trim((string) $streetName) !== '') {
+                $prefix = strtoupper(mb_substr(trim((string) $streetName), 0, 3));
+                $suggestedCode = $prefix . '-' . (int) $numOficial;
+                $pdo->prepare("UPDATE `user` SET code = ? WHERE id = ? AND (code IS NULL OR code = '')")
+                    ->execute([$suggestedCode, (int) $ownerId]);
+            }
+        }
+
         $pdo->commit();
     } catch (\Throwable $e) {
         $pdo->rollBack();

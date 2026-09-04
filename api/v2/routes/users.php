@@ -211,7 +211,7 @@ function handle_user_update(int $id): void
 
     $pdo = Database::connection();
     $existing = $pdo->prepare(
-        'SELECT id, name, email, phone, cellphone, rfc, contactName, contactPhone FROM `user` WHERE id = ? AND deleteAt IS NULL'
+        'SELECT id, name, email, phone, cellphone, rfc, contactName, contactPhone, code FROM `user` WHERE id = ? AND deleteAt IS NULL'
     );
     $existing->execute([$id]);
     $before = $existing->fetch();
@@ -227,6 +227,12 @@ function handle_user_update(int $id): void
     $rfc = array_key_exists('rfc', $body) ? (trim((string) $body['rfc']) ?: null) : $before['rfc'];
     $contactName = array_key_exists('contactName', $body) ? (trim((string) $body['contactName']) ?: null) : $before['contactName'];
     $contactPhone = array_key_exists('contactPhone', $body) ? (trim((string) $body['contactPhone']) ?: null) : $before['contactPhone'];
+    // `code` (código de propiedad, ej. "OLA-75") no se editaba desde el
+    // panel -- el formulario nunca lo mandaba y este handler lo dejaba
+    // intacto a propósito. Ahora el formulario sí lo incluye (ver
+    // panel/propietarios.html), mismo patrón array_key_exists que el resto
+    // de campos opcionales: si se omite, conserva el valor actual.
+    $code = array_key_exists('code', $body) ? (trim((string) $body['code']) ?: null) : $before['code'];
     $password = trim((string) ($body['password'] ?? ''));
 
     if ($name === '' || $email === '') {
@@ -241,30 +247,37 @@ function handle_user_update(int $id): void
     // otro colono (activo o dado de baja) revienta el UPDATE contra esa
     // restricción -> 500 sin control.
     if (strcasecmp($email, (string) $before['email']) !== 0) {
-        $dup = $pdo->prepare('SELECT id FROM `user` WHERE email = ? AND id != ?');
+        $dup = $pdo->prepare('SELECT id, deleteAt FROM `user` WHERE email = ? AND id != ?');
         $dup->execute([$email, $id]);
-        if ($dup->fetch() !== false) {
-            Response::error(400, 'Ya existe un colono con ese correo');
+        $conflict = $dup->fetch();
+        if ($conflict !== false) {
+            if ($conflict['deleteAt'] === null) {
+                Response::error(400, 'Ya existe un colono con ese correo');
+            }
+            // Mismo caso "legacy" que en handle_user_create: libera el
+            // correo fantasma de la fila eliminada antes de reasignarlo.
+            $pdo->prepare('UPDATE `user` SET email = ? WHERE id = ?')
+                ->execute([substr('deleted_' . $conflict['id'] . '_' . $email, 0, 255), (int) $conflict['id']]);
         }
     }
 
     if ($password !== '') {
         $stmt = $pdo->prepare(
-            'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, password=?, updateAt=NOW()
+            'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, code=?, password=?, updateAt=NOW()
              WHERE id = ?'
         );
-        $stmt->execute([$name, $email, $phone, $cellphone, $rfc, $contactName, $contactPhone, password_hash($password, PASSWORD_BCRYPT), $id]);
+        $stmt->execute([$name, $email, $phone, $cellphone, $rfc, $contactName, $contactPhone, $code, password_hash($password, PASSWORD_BCRYPT), $id]);
     } else {
         $stmt = $pdo->prepare(
-            'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, updateAt=NOW()
+            'UPDATE `user` SET name=?, email=?, phone=?, cellphone=?, rfc=?, contactName=?, contactPhone=?, code=?, updateAt=NOW()
              WHERE id = ?'
         );
-        $stmt->execute([$name, $email, $phone, $cellphone, $rfc, $contactName, $contactPhone, $id]);
+        $stmt->execute([$name, $email, $phone, $cellphone, $rfc, $contactName, $contactPhone, $code, $id]);
     }
 
     Audit::log('user', $id, 'update', (int) $claims['sub'], ['before' => $before, 'after' => [
         'name' => $name, 'email' => $email, 'phone' => $phone, 'cellphone' => $cellphone,
-        'rfc' => $rfc, 'contactName' => $contactName, 'contactPhone' => $contactPhone,
+        'rfc' => $rfc, 'contactName' => $contactName, 'contactPhone' => $contactPhone, 'code' => $code,
         'passwordChanged' => $password !== '',
     ]]);
 
@@ -297,6 +310,7 @@ function handle_user_create(): void
     $rfc = trim((string) ($body['rfc'] ?? '')) ?: null;
     $contactName = trim((string) ($body['contactName'] ?? '')) ?: null;
     $contactPhone = trim((string) ($body['contactPhone'] ?? '')) ?: null;
+    $code = trim((string) ($body['code'] ?? '')) ?: null;
     $allowedRoles = ['owner', 'admin', 'super_admin'];
     $role = in_array($body['role'] ?? '', $allowedRoles, true) ? $body['role'] : 'owner';
 
@@ -315,20 +329,31 @@ function handle_user_create(): void
     // MySQL -> 500 sin control (bug real reportado 2026-09-02: "crear
     // residente" fallaba con error de servidor al reusar el correo de un
     // colono dado de baja).
-    $dup = $pdo->prepare('SELECT id FROM `user` WHERE email = ?');
+    $dup = $pdo->prepare('SELECT id, deleteAt FROM `user` WHERE email = ?');
     $dup->execute([$email]);
-    if ($dup->fetch() !== false) {
-        Response::error(400, 'Ya existe un colono con ese correo');
+    $conflict = $dup->fetch();
+    if ($conflict !== false) {
+        if ($conflict['deleteAt'] === null) {
+            Response::error(400, 'Ya existe un colono con ese correo');
+        }
+        // Fila de baja "legacy" -- dada de baja antes de que
+        // handle_user_delete empezara a liberar el correo (ver ahí). En vez
+        // de bloquear el alta con un mensaje que el admin no puede resolver
+        // desde el panel, se libera aquí mismo el correo fantasma del
+        // registro eliminado (autosanación), igual que si se hubiera
+        // borrado con el código actual.
+        $pdo->prepare('UPDATE `user` SET email = ? WHERE id = ?')
+            ->execute([substr('deleted_' . $conflict['id'] . '_' . $email, 0, 255), (int) $conflict['id']]);
     }
 
     $stmt = $pdo->prepare(
-        'INSERT INTO `user` (name, email, password, phone, cellphone, rfc, contactName, contactPhone, role, createAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+        'INSERT INTO `user` (name, email, password, phone, cellphone, rfc, contactName, contactPhone, code, role, createAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
     );
-    $stmt->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT), $phone, $cellphone, $rfc, $contactName, $contactPhone, $role]);
+    $stmt->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT), $phone, $cellphone, $rfc, $contactName, $contactPhone, $code, $role]);
     $id = (int) $pdo->lastInsertId();
 
-    Audit::log('user', $id, 'create', (int) $claims['sub'], ['after' => ['name' => $name, 'email' => $email, 'role' => $role]]);
+    Audit::log('user', $id, 'create', (int) $claims['sub'], ['after' => ['name' => $name, 'email' => $email, 'code' => $code, 'role' => $role]]);
 
     Response::json(201, [
         'status' => 'ok',
@@ -418,8 +443,18 @@ function handle_user_delete(int $id): void
         Response::error(404, 'Propietario no encontrado');
     }
 
-    $stmt = $pdo->prepare('UPDATE `user` SET deleteAt = NOW() WHERE id = ?');
-    $stmt->execute([$id]);
+    // El correo se "libera" al momento de la baja (no cuando alguien intenta
+    // reciclarlo después): `uq_user_email` es UNIQUE sobre TODA la tabla,
+    // activos y eliminados, así que sin este prefijo un alta o edición
+    // posterior que reuse el mismo correo de un colono ya dado de baja
+    // seguiría chocando contra ese correo "fantasma" (bug real reportado
+    // 2026-09-03: "se eliminó un colono, se quiso volver a registrar y dice
+    // que el correo ya existe"). Se trunca a 255 por el límite real de la
+    // columna; el correo original queda legible dentro del valor para
+    // auditoría, solo deja de ser un match exacto de un alta nueva.
+    $mangledEmail = substr('deleted_' . $id . '_' . $before['email'], 0, 255);
+    $stmt = $pdo->prepare('UPDATE `user` SET deleteAt = NOW(), email = ? WHERE id = ?');
+    $stmt->execute([$mangledEmail, $id]);
 
     Audit::log('user', $id, 'delete', (int) $claims['sub'], ['before' => $before]);
 

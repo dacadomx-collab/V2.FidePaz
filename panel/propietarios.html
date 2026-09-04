@@ -87,7 +87,7 @@
     }
 
     function openForm(id) {
-        let user = { rfc: '', name: '', email: '', phone: '', cellphone: '', contactName: '', contactPhone: '' };
+        let user = { rfc: '', name: '', email: '', code: '', phone: '', cellphone: '', contactName: '', contactPhone: '' };
         if (id) {
             const found = rowsById.get(String(id));
             if (found) { user = { ...user, ...found }; }
@@ -109,6 +109,10 @@
                         <div class="panel-form-field">
                             <label for="f-rfc">RFC</label>
                             <input type="text" id="f-rfc" value="${user.rfc || ''}">
+                        </div>
+                        <div class="panel-form-field">
+                            <label for="f-code">Código de propiedad</label>
+                            <input type="text" id="f-code" placeholder="Ej. OLA-75" value="${user.code || ''}">
                         </div>
                         <div class="panel-form-field">
                             <label for="f-phone">Teléfono</label>
@@ -156,6 +160,7 @@
                 name: document.getElementById('f-name').value.trim(),
                 email: document.getElementById('f-email').value.trim(),
                 rfc: document.getElementById('f-rfc').value.trim(),
+                code: document.getElementById('f-code').value.trim(),
                 phone: document.getElementById('f-phone').value.trim(),
                 cellphone: document.getElementById('f-cellphone').value.trim(),
                 contactName: document.getElementById('f-contact-name').value.trim(),
